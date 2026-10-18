@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+minimumReleaseAgeExclude:
+  - '@ccusage/ccusage-darwin-arm64@20.0.36'
+  - '@ccusage/ccusage-darwin-x64@20.0.36'
+  - '@ccusage/ccusage-linux-arm64@20.0.36'
+  - '@ccusage/ccusage-linux-x64@20.0.36'
+  - '@ccusage/ccusage-win32-arm64@20.0.36'
+  - '@ccusage/ccusage-win32-x64@20.0.36'
+  - ccusage@20.0.36
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

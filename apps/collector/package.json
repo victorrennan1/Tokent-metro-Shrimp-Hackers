@@ -1,0 +1,32 @@
+{
+  "name": "tokentometro",
+  "version": "0.1.0",
+  "description": "Coletor local, privado e somente leitura do Tokentômetro",
+  "type": "module",
+  "bin": { "tokentometro": "./dist/cli.js" },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsup src/cli.ts --format esm --dts --clean",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "7.4.1",
+    "@tokentometro/contracts": "workspace:*",
+    "ccusage": "20.0.36",
+    "chalk": "5.4.1",
+    "commander": "13.1.0",
+    "conf": "13.1.0",
+    "execa": "9.5.2",
+    "ora": "8.2.0",
+    "zod": "3.24.2"
+  },
+  "devDependencies": {
+    "tsup": "8.4.0",
+    "tsx": "4.19.3",
+    "vitest": "3.0.8"
+  }
+}
+
