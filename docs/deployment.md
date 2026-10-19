@@ -22,14 +22,15 @@ No GitHub, crie ou atualize o OAuth App com a URL pública como homepage e com o
 ## 3. Criar o projeto Vercel
 
 1. Importe este repositório na Vercel.
-2. Mantenha **Root Directory** na raiz do repositório. O `vercel.json` raiz instala o workspace, compila `@tokentometro/web` e usa `apps/web/.next` como saída.
-3. Cadastre, sem prefixar os segredos com `NEXT_PUBLIC_`:
+2. Defina **Root Directory** como `apps/web`. O `vercel.json` instala o workspace, compila `@tokentometro/web` e usa `.next` como saída relativa à aplicação.
+3. Mantenha **Framework Preset** como `Next.js` e habilite a inclusão de arquivos externos à Root Directory para que `packages/contracts` faça parte do build.
+4. Cadastre, sem prefixar os segredos com `NEXT_PUBLIC_`:
    - `NEXT_PUBLIC_SUPABASE_URL`;
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`;
    - `SUPABASE_SECRET_KEY`;
    - `PAIRING_SECRET`.
-4. Gere `PAIRING_SECRET` aleatoriamente com pelo menos 32 caracteres.
-5. Publique somente depois de aplicar todas as migrations. Não habilite fixtures em produção.
+5. Gere `PAIRING_SECRET` aleatoriamente com pelo menos 32 caracteres.
+6. Publique somente depois de aplicar todas as migrations. Não habilite fixtures em produção.
 
 ## 4. Smoke test de produção
 
