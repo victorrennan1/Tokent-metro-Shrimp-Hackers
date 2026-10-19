@@ -13,11 +13,27 @@
   "bugs": {
     "url": "https://github.com/victorrennan1/Tokent-metro-Shrimp-Hackers/issues"
   },
-  "keywords": ["tokens", "telemetry", "claude-code", "codex", "privacy", "cli"],
+  "keywords": [
+    "tokens",
+    "telemetry",
+    "claude-code",
+    "codex",
+    "privacy",
+    "cli"
+  ],
   "type": "module",
-  "engines": { "node": ">=20" },
-  "bin": { "tokentometro": "./dist/cli.js" },
-  "files": ["dist", "README.md", "LICENSE", "NOTICE"],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "tokentometro": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsup",
@@ -43,4 +59,3 @@
     "vitest": "3.0.8"
   }
 }
-
