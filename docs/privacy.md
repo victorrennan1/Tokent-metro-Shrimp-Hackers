@@ -4,6 +4,8 @@ O Tokentômetro aceita agente, modelo, data/hora, hashes não reversíveis, comp
 
 Nunca aceita prompts, respostas, mensagens, código-fonte, conteúdo de arquivos, comandos, saída de ferramentas, caminhos absolutos, cookies, chaves de API ou credenciais Git/agentes. O filtro é aplicado no coletor e repetido na API. Respostas de rejeição usam somente códigos e caminhos estruturais do schema; o valor proibido não é ecoado.
 
+A identificação original de uma sessão também nunca é enviada. Durante o pareamento, o coletor recebe uma chave aleatória exclusiva do perfil e calcula localmente um HMAC-SHA-256 com domínio separado para sessão e repositório. A mesma sessão gera o mesmo pseudônimo em novos dispositivos da mesma conta, enquanto contas diferentes não podem ser correlacionadas por esse valor.
+
 ## Repositórios
 
 A política escolhida no `setup` é aplicada antes da criação do lote:
@@ -21,11 +23,11 @@ O caminho absoluto pode ser usado somente durante descoberta local e é descarta
 - O servidor valida o token diretamente no Supabase antes de ler ou alterar o perfil.
 - Consultas administrativas incluem `profile_id` mesmo quando usam service role.
 - A credencial de dispositivo autoriza somente ingestão para o perfil ao qual o dispositivo pertence.
-- Revogação impede novas ingestões sem apagar o histórico.
+- Logout remove somente o estado local; revogação impede novas ingestões sem apagar o histórico. Exclusão do dispositivo e de seus eventos deve ser uma ação explícita separada.
 
 ## Retenção
 
-Os metadados permanecem até exclusão pelo usuário. O schema remove em cascata dispositivos, repositórios, eventos, sincronizações e códigos quando o perfil é excluído. A API/UI de exclusão completa ainda está pendente e está declarada nas limitações.
+Os metadados permanecem até exclusão pelo usuário. Um dispositivo precisa ser revogado antes de a API/UI permitir sua exclusão; essa operação remove por cascata seus eventos, execuções de sincronização e limites de ingestão. O schema também suporta a remoção em cascata do perfil inteiro, mas a API/UI de exclusão total da conta ainda está pendente.
 
 Logs devem conter somente início/fim, versões, contagens, duração, agente afetado e códigos de erro sanitizados.
 

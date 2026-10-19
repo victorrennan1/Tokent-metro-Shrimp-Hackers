@@ -24,6 +24,13 @@ describe("database authorization boundaries", () => {
     ),
     "utf8",
   );
+  const profileDedup = readFileSync(
+    resolve(
+      process.cwd(),
+      "../../supabase/migrations/202610190001_profile_scoped_session_dedup.sql",
+    ),
+    "utf8",
+  );
   const realDashboard = readFileSync(
     resolve(process.cwd(), "src/components/real-dashboard.tsx"),
     "utf8",
@@ -47,6 +54,17 @@ describe("database authorization boundaries", () => {
       "grant execute on function public.exchange_pairing_code",
     );
     expect(authenticatedFlow).toContain("to service_role");
+    expect(profileDedup).toContain(
+      "revoke all on function public.exchange_pairing_code_v2",
+    );
+    expect(profileDedup).toContain(
+      "revoke all privileges on table public.profile_secrets from public, anon, authenticated",
+    );
+  });
+
+  it("scopes session idempotency to a profile", () => {
+    expect(profileDedup).toContain("unique (profile_id, idempotency_key)");
+    expect(profileDedup).toContain("session_hash_key");
   });
 
   it("keeps the persistent ingest limiter server-only", () => {

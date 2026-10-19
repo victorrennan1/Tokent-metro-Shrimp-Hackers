@@ -1,6 +1,6 @@
 {
   "name": "tokentometro",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "description": "Coletor local, privado e somente leitura do Tokentômetro",
   "author": "Victor Rennan",
   "license": "Apache-2.0",

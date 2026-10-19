@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import { applyRepositoryPrivacy, canonicalizeGithubRemote, createIdempotencyKey, normalizeUsage, parseCcusageSessions, parseCodexSessionLog, prepareUsageRecord, sanitizedSourceError, type RawUsage } from "./core";
 
 const raw: RawUsage = { agent: "codex", model: "gpt-test", sessionId: "session-1", occurredAt: "2026-01-02T12:00:00.000Z", input: 100, cachedInput: 60, output: 20, sourceVersion: "fixture" };
+const profileKey = "a".repeat(64);
+const anotherProfileKey = "b".repeat(64);
 
 describe("collector core", () => {
   it.each([["git@github.com:acme/app.git", "acme/app"], ["https://github.com/acme/app.git", "acme/app"], ["https://gitlab.com/acme/app", null]])("canonicalizes %s", (value, expected) => expect(canonicalizeGithubRemote(value)).toBe(expected));
-  it("produces stable idempotency keys", () => expect(createIdempotencyKey("salt", raw)).toBe(createIdempotencyKey("salt", raw)));
+  it("produces stable profile-scoped idempotency keys", () => {
+    expect(createIdempotencyKey(profileKey, raw)).toBe(createIdempotencyKey(profileKey, raw));
+    expect(createIdempotencyKey(profileKey, raw)).not.toBe(createIdempotencyKey(anotherProfileKey, raw));
+  });
   it("keeps the same idempotency key while an active session grows", () => {
-    expect(createIdempotencyKey("salt", raw)).toBe(createIdempotencyKey("salt", {
+    expect(createIdempotencyKey(profileKey, raw)).toBe(createIdempotencyKey(profileKey, {
       ...raw,
       occurredAt: "2026-01-02T12:30:00.000Z",
       total: 999
@@ -42,7 +47,7 @@ describe("collector core", () => {
       cost: null, sourceVersion: "codex-local-jsonl-v1"
     }));
     expect(JSON.stringify(parsed)).not.toContain("private");
-    expect(normalizeUsage(parsed!, "salt").tokens.total).toBe(120);
+    expect(normalizeUsage(parsed!, profileKey).tokens.total).toBe(120);
   });
   it("supports legacy Codex token_count events and multiple models", () => {
     const parsed = parseCodexSessionLog([
@@ -79,13 +84,13 @@ describe("collector core", () => {
     ].join("\n"))).toBeNull();
   });
   it("anonymizes a private repository", () => {
-    const result = applyRepositoryPrivacy(normalizeUsage(raw, "salt"), "acme/private", "private", "anonymize-private", "salt");
+    const result = applyRepositoryPrivacy(normalizeUsage(raw, profileKey), "acme/private", "private", "anonymize-private", profileKey);
     expect(result?.repository.type).toBe("anonymous");
     expect(JSON.stringify(result)).not.toContain("acme/private");
   });
   it("applies the unknown repository policy before the network boundary", () => {
-    expect(prepareUsageRecord({ ...raw, projectPath: "C:\\private\\source" }, "ignore-unknown", "salt")).toBeNull();
-    const allowed = prepareUsageRecord({ ...raw, projectPath: "C:\\private\\source" }, "public-only", "salt");
+    expect(prepareUsageRecord({ ...raw, projectPath: "C:\\private\\source" }, "ignore-unknown", profileKey)).toBeNull();
+    const allowed = prepareUsageRecord({ ...raw, projectPath: "C:\\private\\source" }, "public-only", profileKey);
     expect(JSON.stringify(allowed)).not.toContain("private\\source");
   });
   it("uses a path-free source error", () => {

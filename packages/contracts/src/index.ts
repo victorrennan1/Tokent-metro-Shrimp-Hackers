@@ -56,9 +56,18 @@ export const ingestResponseSchema = z.object({
   errors: z.array(z.object({ index: z.number().int().nonnegative(), code: z.string(), message: z.string() }))
 });
 
+export const pairingResponseSchema = z.object({
+  deviceToken: z.string().regex(/^ttm_[A-Za-z0-9_-]{32,}$/),
+  sessionHashKey: z.string().regex(/^[a-f0-9]{64}$/),
+  deviceId: z.string().uuid().optional(),
+  mode: z.string().optional(),
+  persisted: z.boolean().optional()
+}).strict();
+
 export type UsageRecord = z.infer<typeof usageRecordSchema>;
 export type IngestBatch = z.infer<typeof ingestBatchSchema>;
 export type IngestResponse = z.infer<typeof ingestResponseSchema>;
+export type PairingResponse = z.infer<typeof pairingResponseSchema>;
 
 const forbiddenKey = /(prompt|response|message|content|code|credential|cookie|api.?key|auth.?token|local.?path|file.?path|command|tool.?output)/i;
 const windowsAbsolutePath = /(?:^|[\s"'(`])(?:[a-zA-Z]:[\\/]|\\\\)[^\s]*/;

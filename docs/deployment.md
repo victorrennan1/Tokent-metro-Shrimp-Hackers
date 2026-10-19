@@ -5,8 +5,8 @@ Estas etapas dependem das contas do proprietário. O repositório está preparad
 ## 1. Atualizar o Supabase
 
 1. Abra o SQL Editor do projeto correto.
-2. Aplique, em ordem, os arquivos `supabase/migrations/202610180001_initial_schema.sql` até `202610180004_persistent_ingest_rate_limit.sql`.
-3. Confirme que a última migration criou `ingest_rate_limits` e a função `consume_device_ingest_rate_limit`; a função deve permanecer executável somente por `service_role`.
+2. Aplique, em ordem, todos os arquivos até `supabase/migrations/202610190001_profile_scoped_session_dedup.sql`.
+3. Confirme que a última migration criou `profile_secrets`, `exchange_pairing_code_v2` e a unicidade `(profile_id, idempotency_key)`; tabela e função devem permanecer inacessíveis aos papéis do navegador.
 4. Execute localmente `corepack pnpm audit:persistent`. Depois da migration 004, execute também `corepack pnpm audit:idempotency` e `corepack pnpm audit:revocation`.
 
 ## 2. Configurar GitHub OAuth no Supabase
@@ -43,6 +43,7 @@ Na URL publicada, execute nesta ordem:
 5. reenviar o mesmo lote com `corepack pnpm audit:idempotency` ou repetir sem dados novos e confirmar total inalterado;
 6. revogar o dispositivo no dashboard e confirmar que novo `tokentometro sync` recebe `device_revoked` sem avançar cursores;
 7. executar o roteiro RLS abaixo com duas identidades reais.
+8. revincular a mesma conta, sincronizar novamente o mesmo histórico e confirmar que as sessões são atualizadas ou ignoradas, nunca inseridas outra vez.
 
 ## 5. Teste RLS com dois usuários reais
 
@@ -60,5 +61,7 @@ Na URL publicada, execute nesta ordem:
 4. Em diretório temporário, instale o tarball e repita `setup`, `scan`, `sync`, `status` e `logout`.
 5. Depois da revisão e autorização explícita do proprietário, execute `npm publish --tag beta --access public` dentro de `apps/collector`.
 6. Valide `npm view tokentometro@beta` e `npx tokentometro@beta --version` a partir de um diretório temporário novo.
+
+Para o beta.2, aplique a migration e publique/reimplante a API antes de mover a tag npm `beta`. O beta.1 não anuncia a capacidade `sessionHashVersion: 1` e, por isso, o novo endpoint recusa novos pareamentos desse cliente em vez de permitir hashes incompatíveis.
 
 Não publique o pacote antes de confirmar propriedade ou disponibilidade do nome. Não inclua `.env.local`, configurações do coletor, fixtures, arquivos de histórico ou qualquer caminho local no tarball.

@@ -1,198 +1,72 @@
-# Próxima sessão do Codex — preparar e publicar o coletor npm beta
+# Próxima sessão do Codex — implantar a deduplicação estável do beta.2
 
-## Objetivo da sessão
+## Objetivo
 
-Transformar o coletor existente em uma experiência pública instalável pelo npm, com primeiro uso guiado por um único comando:
+Colocar em produção a correção que impede uma pessoa de inflar os tokens ao remover e parear novamente o mesmo computador. A mesma sessão local deve ser inserida uma única vez por perfil e apenas atualizada quando seus contadores crescerem, sem enviar a identificação original da sessão.
 
-```powershell
-npx tokentometro@beta setup
-```
+## Estado de partida
 
-Ao final, o pacote `tokentometro@0.1.0-beta.1` deve estar validado fora do monorepo e pronto para publicação. A publicação no npm só pode ocorrer depois de o proprietário revisar o tarball e autorizar explicitamente `npm publish` durante a sessão.
+- `tokentometro@0.1.0-beta.1` está publicado e o fluxo real de instalação funciona.
+- O smoke do beta.1 encontrou 23 sessões no pareamento atual e confirmou atualização incremental sem duplicação dentro desse pareamento.
+- O dashboard também revelou 42 sessões antigas duplicadas por novos pareamentos da mesma conta.
+- A correção beta.2 está implementada no repositório, mas ainda não foi aplicada ao Supabase, implantada na Vercel nem publicada no npm.
+- Nenhum registro histórico deve ser apagado antes de a correção estar ativa e validada.
 
-## Experiência final esperada
+## Solução implementada
 
-1. O usuário entra no dashboard de produção com GitHub.
-2. Clica em **Adicionar computador** e recebe um código temporário de uso único.
-3. Executa `npx tokentometro@beta setup`.
-4. O coletor usa a URL de produção como padrão, mas preserva `--api-url` e `TOKENTOMETRO_API_URL` para desenvolvimento.
-5. O usuário informa o código, confirma o nome do computador e escolhe a política de repositórios.
-6. O próprio `setup` executa uma varredura somente leitura e mostra a prévia sanitizada.
-7. O coletor pergunta se deve realizar a primeira sincronização.
-8. Somente após confirmação, os metadados permitidos são enviados.
-9. O terminal mostra o resultado e o endereço do dashboard.
-10. As próximas coletas permanecem manuais com `npx tokentometro@beta sync`.
+1. `profile_secrets` mantém uma chave aleatória exclusiva por perfil, inacessível aos papéis do navegador.
+2. `exchange_pairing_code_v2` entrega essa chave somente durante um pareamento autorizado.
+3. O coletor calcula localmente HMAC-SHA-256 de `agente + session_id`; a `session_id` original nunca atravessa a rede.
+4. A unicidade passa a ser `(profile_id, idempotency_key)`, evitando duplicação na mesma conta e colisão entre contas.
+5. A ingestão procura eventos no perfil inteiro, não apenas no dispositivo atual.
+6. Coletores sem `sessionHashVersion: 1` recebem `426 collector_upgrade_required` em novos pareamentos.
+7. Logout e revogação preservam o histórico; exclusão de dados continua sendo uma ação explícita separada.
 
-`start` não faz parte desta versão. Esse nome fica reservado para uma futura sincronização periódica ou serviço em segundo plano.
+## Ordem obrigatória de implantação
 
-## Decisões já tomadas
+1. Revisar o diff e executar `corepack pnpm check`.
+2. Aplicar `supabase/migrations/202610190001_profile_scoped_session_dedup.sql`.
+3. Confirmar que `profile_secrets`, `exchange_pairing_code_v2` e a unicidade composta existem e continuam protegidos.
+4. Fazer commit e push das mudanças.
+5. Aguardar o deploy Vercel e validar `/api/health`.
+6. Gerar e inspecionar o tarball `tokentometro@0.1.0-beta.2`.
+7. Instalar o tarball fora do monorepo e validar `--version`, `setup`, `scan`, `sync`, `status` e `logout`.
+8. Somente com autorização explícita, publicar `npm publish --tag beta --access public`.
+9. Confirmar `npm view tokentometro@beta` e executar o pacote vindo do registro.
 
-- Nome público pretendido: `tokentometro`.
-- Canal inicial: `beta`.
-- Primeira versão: `0.1.0-beta.1`; não publicar `0.1.0` antes de validar o beta.
-- Forma principal de uso: `npx tokentometro@beta <comando>`.
-- Instalação global é alternativa: `npm install --global tokentometro@beta`.
-- Coleta e sincronização permanecem manuais.
-- Claude Code e Codex são integrações funcionais.
-- Antigravity é somente detectado e não deve ser anunciado como integração funcional.
-- O coletor e `packages/contracts` usam Apache-2.0, copyright 2026 Victor Rennan.
-- `apps/web`, `supabase` e as demais partes do monorepo permanecem com todos os direitos reservados.
-- A URL atual de produção é `https://web-beta-taupe-89.vercel.app`; não inventar domínio definitivo.
+## Smoke obrigatório de repareamento
 
-## Regras obrigatórias
+1. Parear a conta A com o beta.2 e sincronizar o histórico completo.
+2. Registrar quantidade de sessões e total de tokens.
+3. Executar logout local e revogar o dispositivo.
+4. Gerar outro código para a mesma conta A e parear novamente.
+5. Sincronizar o mesmo histórico.
+6. Confirmar `0 inseridos`; registros podem ser `updated` ou `ignored`.
+7. Confirmar que quantidade de sessões e total não aumentaram artificialmente.
+8. Repetir com a conta B e confirmar que os dados permanecem independentes.
 
-- Ler `AGENTS.md`, este plano e somente as referências de arquitetura, privacidade e limitações necessárias.
-- Preservar mudanças existentes do usuário e não limpar o worktree.
-- Nunca coletar, transmitir, empacotar ou registrar prompts, respostas, código, comandos, saídas de ferramentas, credenciais, cookies, chaves ou caminhos absolutos.
-- O código de pareamento não deve ser incluído no comando mostrado pela UI, para não ficar gravado no histórico do terminal.
-- A prévia ocorre antes do primeiro envio; cancelamento não pode avançar cursores.
-- Cursores só avançam depois da confirmação integral do servidor.
-- Não adicionar sincronização automática, daemon, serviço do Windows ou cron nesta sessão.
-- Não publicar no npm sem confirmação explícita do proprietário depois da inspeção final.
-- Não imprimir tokens de autenticação npm nem qualquer segredo durante diagnóstico.
+## Limpeza dos dados antigos
 
-## Etapa 1 — consolidar os metadados do pacote
+Somente depois do smoke aprovado:
 
-1. Alterar a versão do coletor para `0.1.0-beta.1` e manter CLI, cabeçalhos de ingestão e pacote consistentes.
-2. Evitar versões divergentes no código; preferir uma única fonte de verdade segura para a versão.
-3. Completar `package.json` com `author`, `license`, `repository`, `homepage`, `bugs` e `keywords` corretos.
-4. Manter `engines.node >=20`, o binário `tokentometro` e somente arquivos necessários em `files`.
-5. Confirmar que `LICENSE`, `NOTICE` e README acompanham o tarball.
-6. Verificar licenças das dependências de produção e registrar qualquer incompatibilidade real antes da publicação.
+1. identificar exatamente o perfil do proprietário e os dispositivos revogados;
+2. conferir que o conjunto beta.2 ativo contém o histórico completo;
+3. apresentar a contagem exata que será removida;
+4. obter autorização explícita;
+5. excluir apenas eventos e execuções ligados aos dispositivos antigos selecionados;
+6. confirmar o dashboard sem as 42 sessões duplicadas.
 
-## Etapa 2 — implementar o primeiro uso guiado
+## Entregáveis
 
-1. Refatorar o fluxo para que `setup` reutilize as mesmas funções de descoberta, preparação e sincronização dos comandos independentes, sem duplicar regras.
-2. Usar a URL de produção como padrão de distribuição.
-3. Preservar a precedência explícita:
-   - `--api-url`;
-   - `TOKENTOMETRO_API_URL`;
-   - URL de produção padrão.
-4. Manter as perguntas de código de pareamento, nome do computador e política de repositórios.
-5. Após parear, executar uma prévia somente leitura com:
-   - fontes detectadas;
-   - quantidade de sessões por fonte;
-   - período;
-   - política aplicada;
-   - campos permitidos;
-   - campos que nunca são enviados.
-6. Perguntar `Sincronizar agora?` com resposta padrão negativa.
-7. Se o usuário recusar, manter o computador vinculado, não enviar eventos e não avançar cursores.
-8. Se aceitar, usar exatamente o fluxo idempotente já existente.
-9. Ao concluir, mostrar contagens sanitizadas e a URL do dashboard, sem abrir navegador automaticamente.
-10. Preservar os comandos independentes `scan`, `sync`, `status` e `logout`.
-
-## Etapa 3 — atualizar o dashboard de pareamento
-
-1. Em produção, trocar a instrução interna do monorepo por:
-
-   ```powershell
-   npx tokentometro@beta setup
-   ```
-
-2. Manter o código separado do comando.
-3. Explicar que o código é temporário e de uso único.
-4. Informar que o coletor mostrará uma prévia antes do primeiro envio.
-5. Manter o comportamento do modo demonstração claramente separado e rotulado.
-
-## Etapa 4 — documentação pública
-
-1. Reescrever `apps/collector/README.md` para usuários externos, removendo o comando do monorepo como instrução principal.
-2. Documentar:
-   - requisito Node.js 20+;
-   - primeiro uso com `npx`;
-   - comandos `setup`, `scan`, `sync`, `status` e `logout`;
-   - instalação global opcional e desinstalação;
-   - diferença entre remover o pacote, executar `logout` e revogar o dispositivo;
-   - coleta manual;
-   - dados coletados e proibidos;
-   - Claude Code e Codex funcionais;
-   - Antigravity ainda sem eventos;
-   - licença Apache-2.0.
-3. Atualizar README raiz, `docs/deployment.md` e `docs/limitations.md` para o estado real já comprovado em produção.
-4. Não descrever tokens como cobrança ou gasto oficial; usar **tokens reportados pela telemetria local** e **Custo equivalente estimado**.
-
-## Etapa 5 — testes obrigatórios
-
-Adicionar ou atualizar testes para cobrir, no mínimo:
-
-1. prioridade de `--api-url`, variável de ambiente e padrão de produção;
-2. `setup` com pareamento válido e primeira sincronização aceita;
-3. `setup` com primeira sincronização recusada;
-4. cancelamento sem avanço de cursor;
-5. nenhuma sessão encontrada;
-6. fonte detectada sem eventos;
-7. falha de ingestão sem avanço de cursor;
-8. retry/idempotência sem duplicação;
-9. dispositivo revogado;
-10. saída sem credenciais, caminhos absolutos ou conteúdo proibido;
-11. preservação dos comandos independentes;
-12. UI de pareamento exibindo o comando npm correto em produção e sem código embutido.
-
-## Etapa 6 — validar o artefato fora do monorepo
-
-1. Executar lint, typecheck, testes e build dos pacotes afetados.
-2. Executar `npm pack --dry-run` obrigatoriamente dentro de `apps/collector`, nunca na raiz.
-3. Revisar a lista completa do tarball e confirmar ausência de `.env`, fontes desnecessárias, fixtures, credenciais e arquivos do dashboard.
-4. Gerar o tarball real do beta.
-5. Criar diretório temporário fora do monorepo e instalar o tarball.
-6. Validar nessa instalação:
-   - `tokentometro --version`;
-   - `tokentometro setup` contra um fluxo seguro de teste;
-   - `tokentometro scan`;
-   - `tokentometro sync`;
-   - `tokentometro status`;
-   - `tokentometro logout`.
-7. Confirmar que o pacote não depende de `workspace:*` em runtime.
-8. Executar `git diff --check`.
-
-## Etapa 7 — gate de publicação
-
-Antes de qualquer publicação, apresentar ao proprietário:
-
-- versão exata;
-- nome e tag npm;
-- conteúdo completo do tarball;
-- resultado dos testes;
-- resultado da instalação fora do monorepo;
-- confirmação de que o nome ainda está disponível;
-- comando exato que será executado.
-
-Somente depois de autorização explícita, executar a partir de `apps/collector`:
-
-```powershell
-npm publish --tag beta --access public
-```
-
-Se autenticação ou 2FA forem solicitados, deixar o usuário concluir a etapa diretamente. Nunca solicitar que ele cole senha, token ou OTP no chat.
-
-## Etapa 8 — smoke test do pacote publicado
-
-Se a publicação for autorizada e concluída:
-
-1. Confirmar `npm view tokentometro@beta`.
-2. Em novo diretório temporário, executar o pacote vindo do registro, não o tarball local.
-3. Validar `npx tokentometro@beta --version`.
-4. Executar o fluxo real autorizado: pareamento, prévia, primeira sincronização e dashboard.
-5. Repetir `sync` e confirmar ausência de duplicação.
-6. Revogar o dispositivo de teste, confirmar recusa posterior e executar `logout`.
-7. Não apagar dados ou dispositivos do usuário sem autorização específica.
-
-## Entregáveis claros
-
-Ao final da sessão, devemos ter:
-
-1. `tokentometro@0.1.0-beta.1` com metadados e licença corretos.
-2. `setup` guiando pareamento, prévia e primeira sincronização.
-3. URL de produção como padrão, com overrides para desenvolvimento preservados.
-4. Modal de pareamento usando o comando npm público.
-5. README público completo para instalação e uso manual.
-6. Testes positivos e negativos do novo onboarding.
-7. Tarball auditado e instalado fora do monorepo.
-8. Matriz final de verificações aprovadas, reprovadas ou pendentes.
-9. Se autorizado: beta publicado e smoke test executado a partir do registro npm.
-10. Se não autorizado: pacote pronto, sem publicação, com apenas a ação do proprietário pendente.
+- migration aplicada e verificada;
+- API Vercel usando pareamento v2;
+- `tokentometro@0.1.0-beta.2` auditado e, se autorizado, publicado;
+- teste conta A → logout/revogação → conta A sem novas inserções;
+- teste entre contas sem colisão ou vazamento;
+- dashboard sem inflação por repareamento;
+- documentação e limitações correspondendo ao comportamento comprovado;
+- limpeza antiga executada somente mediante autorização separada.
 
 ## Definição de pronto
 
-A sessão estará concluída quando um builder conseguir partir do dashboard, executar `npx tokentometro@beta setup`, revisar a prévia, autorizar a primeira sincronização e visualizar seus tokens no dashboard sem acessar o monorepo. A versão não pode ser declarada publicada até ser instalada e testada diretamente do registro npm.
+O trabalho termina quando um mesmo histórico puder ser sincronizado novamente após um novo pareamento da mesma conta sem aumentar o número de sessões ou o total de tokens, enquanto outra conta continua recebendo registros independentes e nenhuma identificação original de sessão atravessa a rede.

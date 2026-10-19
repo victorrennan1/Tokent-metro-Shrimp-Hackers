@@ -4,7 +4,7 @@ import { confirm, input, password, select } from "@inquirer/prompts";
 import Conf from "conf";
 import chalk from "chalk";
 import ora from "ora";
-import { createDeviceSecret } from "./core";
+import { createEphemeralHashKey } from "./core";
 import {
   parsePolicy,
   prepareCollection,
@@ -78,10 +78,10 @@ export function createProgram(store: SettingsStore = config): Command {
         "Procurando fontes locais em modo somente leitura…",
       ).start();
       const policy = store.get("policy") ?? "public-only";
-      const salt = store.get("deviceSalt") ?? createDeviceSecret();
+      const hashKey = store.get("profileHashKey") ?? createEphemeralHashKey();
       const plan = await prepareCollection(
         policy,
-        salt,
+        hashKey,
         store.get("cursors") ?? {},
       );
       spinner.stop();
@@ -95,14 +95,14 @@ export function createProgram(store: SettingsStore = config): Command {
     .action(async (options: { yes?: boolean }) => {
       const token = store.get("deviceToken");
       const apiUrl = store.get("apiUrl");
-      const salt = store.get("deviceSalt");
-      if (!token || !apiUrl || !salt)
-        throw new Error("Execute `tokentometro setup` primeiro.");
+      const hashKey = store.get("profileHashKey");
+      if (!token || !apiUrl || !hashKey)
+        throw new Error("Esta vinculação usa uma identidade de sessão antiga. Execute `tokentometro logout` e depois `tokentometro setup`.");
 
       const policy = parsePolicy(store.get("policy")) ?? "public-only";
       const plan = await prepareCollection(
         policy,
-        salt,
+        hashKey,
         store.get("cursors") ?? {},
       );
       if (!plan.records.length) {

@@ -44,6 +44,7 @@ const raw: RawUsage = {
   total: 125,
   sourceVersion: "fixture",
 };
+const profileHashKey = "a".repeat(64);
 
 function source(records: RawUsage[] = [raw], detected = true) {
   const adapter: UsageAdapter = {
@@ -69,7 +70,10 @@ function setupFetch(
     const url = String(input);
     requests.push({ url, init });
     if (url.endsWith("/api/v1/pair"))
-      return response({ deviceToken: "ttm_test-device-token" });
+      return response({
+        deviceToken: "ttm_test-device-token-with-enough-characters",
+        sessionHashKey: profileHashKey,
+      });
     const batch = JSON.parse(String(init?.body)) as {
       batchId: string;
       records: unknown[];
@@ -105,7 +109,6 @@ function setupDependencies(
     sleep: async () => undefined,
     env: {} as NodeJS.ProcessEnv,
     platform: "win32" as const,
-    createSecret: () => "ttm_test-salt",
   };
 }
 
@@ -152,6 +155,9 @@ describe("collector workflow", () => {
     expect(requests[0]?.init?.headers).toEqual(
       expect.objectContaining({ "x-collector-version": COLLECTOR_VERSION }),
     );
+    expect(JSON.parse(String(requests[0]?.init?.body))).toEqual(
+      expect.objectContaining({ sessionHashVersion: 1 }),
+    );
     expect(requests[1]?.init?.headers).toEqual(
       expect.objectContaining({ "x-collector-version": COLLECTOR_VERSION }),
     );
@@ -166,7 +172,8 @@ describe("collector workflow", () => {
       setupDependencies(store, setupFetch(requests), logs, false),
     );
 
-    expect(store.values.deviceToken).toBe("ttm_test-device-token");
+    expect(store.values.deviceToken).toBe("ttm_test-device-token-with-enough-characters");
+    expect(store.values.profileHashKey).toBe(profileHashKey);
     expect(store.values.cursors).toEqual({});
     expect(requests).toHaveLength(1);
     expect(logs.join("\n")).toContain("Nenhum evento foi enviado");
@@ -194,7 +201,7 @@ describe("collector workflow", () => {
     });
     const plan = await prepareCollection(
       "public-only",
-      "ttm_test-salt",
+      profileHashKey,
       store.values.cursors,
       async () => [source()],
     );
@@ -225,7 +232,7 @@ describe("collector workflow", () => {
     const store = new MemoryStore({ cursors: {} });
     const plan = await prepareCollection(
       "public-only",
-      "ttm_test-salt",
+      profileHashKey,
       {},
       async () => [source()],
     );
@@ -265,7 +272,7 @@ describe("collector workflow", () => {
     const store = new MemoryStore({ cursors: {} });
     const plan = await prepareCollection(
       "public-only",
-      "ttm_test-salt",
+      profileHashKey,
       {},
       async () => [source()],
     );
@@ -295,6 +302,7 @@ describe("collector workflow", () => {
     const output = logs.join("\n");
     expect(output).not.toContain("PAIR-1234");
     expect(output).not.toContain("ttm_test-device-token");
+    expect(output).not.toContain(profileHashKey);
     expect(output).not.toContain("C:\\Users\\private\\source");
     expect(output).not.toContain("session-test");
   });
@@ -302,7 +310,7 @@ describe("collector workflow", () => {
   it("shows detected sources and sanitized policy fields in the preview", async () => {
     const plan = await prepareCollection(
       "public-only",
-      "ttm_test-salt",
+      profileHashKey,
       {},
       async () => [source()],
     );

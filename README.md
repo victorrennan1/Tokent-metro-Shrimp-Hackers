@@ -41,7 +41,7 @@ corepack pnpm --filter ./apps/collector dev status
 corepack pnpm --filter ./apps/collector dev logout
 ```
 
-O canal beta público será usado assim que o proprietário autorizar a publicação:
+O canal beta público pode ser executado com:
 
 ```bash
 npx tokentometro@beta setup
@@ -54,7 +54,7 @@ O `setup` usa `https://web-beta-taupe-89.vercel.app` por padrão, solicita o có
 
 O coletor usa `ccusage@20.0.36` para Claude Code e lê os contadores estruturados dos históricos JSONL do Codex atrás de `UsageAdapter`. Mensagens, prompts, respostas, comandos e saídas de ferramentas do Codex são ignorados. A política de repositório é aplicada antes da rede; caminhos locais não entram no contrato. Cada fonte possui cursor próprio, atualizado somente após a confirmação de todos os lotes. Retries usam o mesmo lote durante a tentativa e as chaves de evento permanecem estáveis entre execuções. No Codex, `cached_input_tokens` já pertence à entrada e `reasoning_tokens` já pertence à saída; eles não são somados novamente. O **Custo equivalente estimado** do Codex permanece nulo.
 
-Antigravity é apenas detectado e ainda não produz eventos. Históricos Codex `.zst` ainda não são processados.
+Antigravity é apenas detectado e ainda não produz eventos. Históricos Codex `.zst` ainda não são processados. A partir do beta.2, as sessões usam HMAC estável por perfil, de modo que refazer o pareamento na mesma conta atualiza o histórico em vez de duplicá-lo; a identificação original da sessão não é transmitida.
 
 ## Verificação
 
@@ -79,7 +79,7 @@ Consulte [deploy e OAuth](docs/deployment.md) para a sequência de Vercel, Supab
 
 ## Revogação e remoção
 
-Execute `tokentometro logout` para apagar a credencial local. No dashboard real, **Computadores → Revogar → Confirmar revogação** impede novos envios imediatamente. A exclusão completa de dados possui suporte de cascata no schema, mas a operação autenticada de exclusão ainda não faz parte desta fatia.
+Execute `tokentometro logout` para apagar a credencial local. No dashboard real, **Computadores → Revogar → Confirmar revogação** impede novos envios imediatamente. Depois da revogação, **Excluir dispositivo e dados → Confirmar exclusão dos dados** remove o dispositivo e seus eventos por cascata. Exclusão total da conta ainda não faz parte desta fatia.
 
 Consulte [arquitetura](docs/architecture.md), [privacidade](docs/privacy.md) e [limitações](docs/limitations.md).
 

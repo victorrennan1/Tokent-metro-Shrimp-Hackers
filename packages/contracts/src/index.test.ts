@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertNoForbiddenData, calculateTotal, ingestBatchSchema } from "./index";
+import { assertNoForbiddenData, calculateTotal, ingestBatchSchema, pairingResponseSchema } from "./index";
 
 describe("contracts", () => {
   it("does not double count cached input", () => {
@@ -22,6 +22,15 @@ describe("contracts", () => {
   });
   it("limits batch size", () => {
     expect(ingestBatchSchema.safeParse({ schemaVersion: 1, batchId: crypto.randomUUID(), records: [] }).success).toBe(false);
+  });
+  it("requires a profile-scoped hash key in pairing responses", () => {
+    expect(pairingResponseSchema.safeParse({
+      deviceToken: `ttm_${"a".repeat(43)}`,
+      sessionHashKey: "b".repeat(64)
+    }).success).toBe(true);
+    expect(pairingResponseSchema.safeParse({
+      deviceToken: `ttm_${"a".repeat(43)}`
+    }).success).toBe(false);
   });
   it("rejects duplicate idempotency keys inside one batch", () => {
     const record = {

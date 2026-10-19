@@ -38,9 +38,13 @@ npm uninstall --global tokentometro
 
 Remover o pacote não apaga a configuração local nem revoga o dispositivo no servidor. `tokentometro logout` apaga a credencial e as preferências locais, mas também não revoga o dispositivo. Para impedir novos envios daquela credencial, use **Computadores → Revogar → Confirmar revogação** no dashboard.
 
+Sair ou revogar não exclui o histórico. No dashboard beta.2, um dispositivo já revogado pode ser excluído por uma ação separada com confirmação; a exclusão remove também os eventos e execuções ligados a ele.
+
 ## Dados e privacidade
 
-O coletor envia apenas agente, modelo, horário, hashes não reversíveis de sessão, componentes de tokens, **Custo equivalente estimado** quando disponível, repositório já filtrado e versões técnicas. Ele nunca envia prompts, respostas, mensagens, código-fonte, conteúdo de arquivos, comandos, saídas de ferramentas, credenciais, cookies, chaves ou caminhos absolutos.
+O coletor envia apenas agente, modelo, horário, hashes não reversíveis de sessão, componentes de tokens, **Custo equivalente estimado** quando disponível, repositório já filtrado e versões técnicas. Ele nunca envia a identificação original da sessão, prompts, respostas, mensagens, código-fonte, conteúdo de arquivos, comandos, saídas de ferramentas, credenciais, cookies, chaves ou caminhos absolutos.
+
+No pareamento, o servidor fornece uma chave de pseudonimização exclusiva da conta. O coletor aplica HMAC-SHA-256 localmente à combinação de agente e identificação da sessão. Assim, a mesma sessão permanece reconhecível após um novo pareamento da mesma conta, sem poder ser correlacionada com outra conta e sem revelar sua identificação original.
 
 Repositórios públicos podem usar `owner/repository`; privados são ocultados ou recebem hash estável conforme a política; itens desconhecidos podem ser ignorados. A política é aplicada antes da rede. Cursores avançam somente depois da confirmação integral do servidor, e retries reutilizam o mesmo lote.
 

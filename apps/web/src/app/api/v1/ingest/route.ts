@@ -31,6 +31,7 @@ function completedRunResponse(batchId: string, run: { inserted_count: number; up
 
 type UsageEventRow = {
   idempotency_key: string;
+  device_id: string;
   agent: string;
   model: string | null;
   source_session_hash: string;
@@ -178,18 +179,24 @@ export async function POST(request: Request) {
     repository_snapshot: record.repository
   }));
   const { data: existingRows, error: lookupError } = await admin.from("usage_events")
-    .select("idempotency_key,agent,model,source_session_hash,occurred_at,input_tokens,cached_input_tokens,cache_creation_tokens,output_tokens,reasoning_tokens,total_tokens,estimated_cost_usd,pricing_version,source_version,schema_version,repository_snapshot")
+    .select("idempotency_key,device_id,agent,model,source_session_hash,occurred_at,input_tokens,cached_input_tokens,cache_creation_tokens,output_tokens,reasoning_tokens,total_tokens,estimated_cost_usd,pricing_version,source_version,schema_version,repository_snapshot")
     .eq("profile_id", device.profile_id)
-    .eq("device_id", device.id)
     .in("idempotency_key", rows.map((row) => row.idempotency_key));
   const existingByKey = new Map((existingRows as UsageEventRow[] | null)?.map((row) => [row.idempotency_key, row]) ?? []);
   const rowsToWrite = lookupError ? [] : rows.filter((row) => {
     const existing = existingByKey.get(row.idempotency_key);
-    return !existing || (!sameEvent(existing, row) && canReplaceEvent(existing, row));
+    if (!existing) return true;
+    const sameIdentity = existing.agent === row.agent
+      && existing.source_session_hash === row.source_session_hash;
+    const adoptedByCurrentDevice = sameIdentity
+      && existing.device_id !== row.device_id
+      && (sameEvent(existing, row) || canReplaceEvent(existing, row));
+    return adoptedByCurrentDevice
+      || (!sameEvent(existing, row) && canReplaceEvent(existing, row));
   });
   const writeResult = lookupError || rowsToWrite.length === 0
     ? { error: lookupError }
-    : await admin.from("usage_events").upsert(rowsToWrite, { onConflict: "idempotency_key" }).select("idempotency_key");
+    : await admin.from("usage_events").upsert(rowsToWrite, { onConflict: "profile_id,idempotency_key" }).select("idempotency_key");
   const error = writeResult.error;
   const inserted = error ? 0 : rowsToWrite.filter((row) => !existingByKey.has(row.idempotency_key)).length;
   const updated = error ? 0 : rowsToWrite.length - inserted;

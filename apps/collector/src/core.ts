@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -31,7 +31,6 @@ export interface UsageAdapter {
   scan(since?: string): Promise<RawUsage[]>;
 }
 
-const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const require = createRequire(import.meta.url);
 
 function ccusageCliPath(): string {
@@ -44,11 +43,18 @@ export function canonicalizeGithubRemote(remote: string): string | null {
   return match?.[1] && match[2] ? `${match[1]}/${match[2]}` : null;
 }
 
-export function createIdempotencyKey(deviceSalt: string, raw: RawUsage): string {
-  return sha256([deviceSalt, raw.agent, raw.sessionId].join("|"));
+function scopedHash(profileHashKey: string, scope: string, value: string): string {
+  if (!/^[a-f0-9]{64}$/.test(profileHashKey)) throw new Error("Chave de pseudonimização inválida.");
+  return createHmac("sha256", Buffer.from(profileHashKey, "hex"))
+    .update(`${scope}\0${value}`)
+    .digest("hex");
 }
 
-export function normalizeUsage(raw: RawUsage, deviceSalt: string): UsageRecord {
+export function createIdempotencyKey(profileHashKey: string, raw: RawUsage): string {
+  return scopedHash(profileHashKey, "session-v1", `${raw.agent}\0${raw.sessionId}`);
+}
+
+export function normalizeUsage(raw: RawUsage, profileHashKey: string): UsageRecord {
   const pieces = {
     input: raw.input ?? null,
     cachedInput: raw.cachedInput ?? null,
@@ -57,11 +63,11 @@ export function normalizeUsage(raw: RawUsage, deviceSalt: string): UsageRecord {
     reasoning: raw.reasoning ?? null
   };
   return {
-    idempotencyKey: createIdempotencyKey(deviceSalt, raw),
+    idempotencyKey: createIdempotencyKey(profileHashKey, raw),
     agent: raw.agent,
     model: raw.model,
     repository: { type: "unknown" },
-    sourceSessionHash: sha256(`${deviceSalt}|${raw.sessionId}`),
+    sourceSessionHash: scopedHash(profileHashKey, "session-v1", `${raw.agent}\0${raw.sessionId}`),
     occurredAt: new Date(raw.occurredAt).toISOString(),
     tokens: { ...pieces, total: calculateTotal(pieces, raw.total) },
     estimatedCostUsd: raw.cost ?? null,
@@ -75,21 +81,21 @@ export function applyRepositoryPrivacy(
   canonicalName: string | null,
   visibility: "public" | "private" | "unknown",
   policy: PrivacyPolicy,
-  salt: string
+  profileHashKey: string
 ): UsageRecord | null {
   if (!canonicalName || visibility === "unknown") return policy === "ignore-unknown" ? null : record;
   if (visibility === "public") return { ...record, repository: { type: "public", canonicalName } };
   if (policy === "anonymize-private") {
-    return { ...record, repository: { type: "anonymous", anonymousHash: sha256(`${salt}|${canonicalName}`) } };
+    return { ...record, repository: { type: "anonymous", anonymousHash: scopedHash(profileHashKey, "repository-v1", canonicalName) } };
   }
   return { ...record, repository: { type: "unknown" } };
 }
 
-export function prepareUsageRecord(raw: RawUsage, policy: PrivacyPolicy, deviceSalt: string): UsageRecord | null {
-  const normalized = normalizeUsage(raw, deviceSalt);
+export function prepareUsageRecord(raw: RawUsage, policy: PrivacyPolicy, profileHashKey: string): UsageRecord | null {
+  const normalized = normalizeUsage(raw, profileHashKey);
   // Raw local paths never cross this boundary. Repository discovery may supply a
   // canonical name in the future; until then the configured unknown policy wins.
-  return applyRepositoryPrivacy(normalized, null, "unknown", policy, deviceSalt);
+  return applyRepositoryPrivacy(normalized, null, "unknown", policy, profileHashKey);
 }
 
 export class CcusageAdapter implements UsageAdapter {
@@ -335,5 +341,5 @@ export function makeBatch(records: UsageRecord[]): IngestBatch {
   return { schemaVersion: 1, batchId: randomUUID(), records };
 }
 
-export const createDeviceSecret = () => `ttm_${randomBytes(32).toString("base64url")}`;
+export const createEphemeralHashKey = () => randomBytes(32).toString("hex");
 

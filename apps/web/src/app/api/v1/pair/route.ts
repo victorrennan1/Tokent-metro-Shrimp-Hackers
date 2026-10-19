@@ -20,13 +20,23 @@ const requestSchema = z
       .min(1)
       .max(32)
       .regex(/^[0-9A-Za-z.+-]+$/),
+    sessionHashVersion: z.literal(1),
   })
   .strict();
 
 export async function POST(request: Request) {
-  const parsed = requestSchema.safeParse(
-    await request.json().catch(() => null),
-  );
+  const raw = await request.json().catch(() => null);
+  if (
+    raw &&
+    typeof raw === "object" &&
+    (raw as { sessionHashVersion?: unknown }).sessionHashVersion !== 1
+  ) {
+    return NextResponse.json(
+      { error: "collector_upgrade_required" },
+      { status: 426 },
+    );
+  }
+  const parsed = requestSchema.safeParse(raw);
   if (!parsed.success)
     return NextResponse.json(
       { error: "invalid_pairing_request" },
@@ -40,7 +50,12 @@ export async function POST(request: Request) {
         { error: "pairing_code_invalid_or_expired", demoHint: "SHRIMP-42Q" },
         { status: 401 },
       );
-    return NextResponse.json({ deviceToken, mode: "demo", persisted: false });
+    return NextResponse.json({
+      deviceToken,
+      sessionHashKey: randomBytes(32).toString("hex"),
+      mode: "demo",
+      persisted: false,
+    });
   }
   const secret = process.env.PAIRING_SECRET;
   if (!secret || secret.length < 32 || secret.startsWith("replace-"))
@@ -51,7 +66,7 @@ export async function POST(request: Request) {
   const codeHash = await sha256(
     `${secret}:${parsed.data.pairingCode.toUpperCase()}`,
   );
-  const { data: deviceId, error } = await admin.rpc("exchange_pairing_code", {
+  const { data: pairing, error } = await admin.rpc("exchange_pairing_code_v2", {
     p_code_hash: codeHash,
     p_token_hash: await sha256(deviceToken),
     p_name: parsed.data.name,
@@ -63,10 +78,22 @@ export async function POST(request: Request) {
       { error: "device_creation_failed" },
       { status: 503 },
     );
-  if (!deviceId)
+  if (!pairing)
     return NextResponse.json(
       { error: "pairing_code_invalid_expired_or_used" },
       { status: 401 },
     );
-  return NextResponse.json({ deviceToken, deviceId });
+  if (
+    typeof pairing !== "object" ||
+    typeof pairing.deviceId !== "string" ||
+    typeof pairing.sessionHashKey !== "string" ||
+    !/^[a-f0-9]{64}$/.test(pairing.sessionHashKey)
+  ) {
+    return NextResponse.json({ error: "pairing_response_invalid" }, { status: 503 });
+  }
+  return NextResponse.json({
+    deviceToken,
+    deviceId: pairing.deviceId,
+    sessionHashKey: pairing.sessionHashKey,
+  });
 }

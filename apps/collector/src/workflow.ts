@@ -1,11 +1,11 @@
 import {
   assertNoForbiddenData,
   ingestResponseSchema,
+  pairingResponseSchema,
   type IngestResponse,
   type UsageRecord,
 } from "@tokentometro/contracts";
 import {
-  createDeviceSecret,
   discover,
   makeBatch,
   prepareUsageRecord,
@@ -23,7 +23,7 @@ export const PRIVACY_POLICIES: PrivacyPolicy[] = [
 export type Settings = {
   apiUrl?: string;
   deviceToken?: string;
-  deviceSalt?: string;
+  profileHashKey?: string;
   policy?: PrivacyPolicy;
   cursors?: Record<string, string>;
 };
@@ -74,7 +74,6 @@ export type SetupDependencies = {
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   defaultComputerName?: string;
-  createSecret?: () => string;
 };
 
 export function resolveApiUrl(
@@ -127,7 +126,7 @@ export function validateDeviceName(value: string): string {
 
 export async function prepareCollection(
   policy: PrivacyPolicy,
-  deviceSalt: string,
+  profileHashKey: string,
   cursors: Record<string, string> = {},
   discoverSources: Discover = discover,
 ): Promise<CollectionPlan> {
@@ -142,7 +141,7 @@ export async function prepareCollection(
   }));
   const records = freshBySource.flatMap((source) =>
     source.records
-      .map((record) => prepareUsageRecord(record, policy, deviceSalt))
+      .map((record) => prepareUsageRecord(record, policy, profileHashKey))
       .filter((record): record is UsageRecord => record !== null),
   );
   const nextCursors = { ...cursors };
@@ -196,7 +195,7 @@ export async function pairDevice(
   name: string,
   platform: NodeJS.Platform,
   fetchImpl: Fetch = fetch,
-): Promise<{ deviceToken: string; mode?: string; persisted?: boolean }> {
+): Promise<ReturnType<typeof pairingResponseSchema.parse>> {
   const response = await fetchImpl(`${apiUrl}/api/v1/pair`, {
     method: "POST",
     headers: {
@@ -208,29 +207,22 @@ export async function pairDevice(
       name: validateDeviceName(name),
       platform,
       collectorVersion: COLLECTOR_VERSION,
+      sessionHashVersion: 1,
     }),
   });
-  const body = (await response.json().catch(() => null)) as {
-    deviceToken?: unknown;
-    mode?: unknown;
-    persisted?: unknown;
-    error?: unknown;
-  } | null;
-  if (
-    !response.ok ||
-    typeof body?.deviceToken !== "string" ||
-    !body.deviceToken.startsWith("ttm_")
-  ) {
-    const reason = safeServerError(body?.error);
+  const body = await response.json().catch(() => null);
+  const parsed = pairingResponseSchema.safeParse(body);
+  if (!response.ok || !parsed.success) {
+    const reason = safeServerError(
+      body && typeof body === "object" && "error" in body
+        ? (body as { error?: unknown }).error
+        : undefined,
+    );
     throw new Error(
       `Pareamento recusado (${response.status}; ${reason}). Gere um novo código no dashboard.`,
     );
   }
-  return {
-    deviceToken: body.deviceToken,
-    mode: typeof body.mode === "string" ? body.mode : undefined,
-    persisted: typeof body.persisted === "boolean" ? body.persisted : undefined,
-  };
+  return parsed.data;
 }
 
 export async function sendBatch(
@@ -332,7 +324,6 @@ export async function runSetup(
   );
   const policy =
     parsePolicy(options.policy) ?? (await dependencies.promptPolicy());
-  const salt = (dependencies.createSecret ?? createDeviceSecret)();
   const pairing = await pairDevice(
     apiUrl,
     pairingCode,
@@ -343,7 +334,7 @@ export async function runSetup(
 
   dependencies.store.set("apiUrl", apiUrl);
   dependencies.store.set("deviceToken", pairing.deviceToken);
-  dependencies.store.set("deviceSalt", salt);
+  dependencies.store.set("profileHashKey", pairing.sessionHashKey);
   dependencies.store.set("policy", policy);
   dependencies.store.set("cursors", {});
 
@@ -357,7 +348,12 @@ export async function runSetup(
     );
   }
 
-  const plan = await prepareCollection(policy, salt, {}, dependencies.discover);
+  const plan = await prepareCollection(
+    policy,
+    pairing.sessionHashKey,
+    {},
+    dependencies.discover,
+  );
   previewLines(plan, policy).forEach((line) => dependencies.log(line));
   const shouldSync = await dependencies.confirmFirstSync();
   if (!shouldSync) {

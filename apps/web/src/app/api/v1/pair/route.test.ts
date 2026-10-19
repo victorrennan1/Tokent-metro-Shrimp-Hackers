@@ -19,7 +19,8 @@ const request = (pairingCode = "ABCD-EFGH") =>
       pairingCode,
       name: "Test device",
       platform: "win32",
-      collectorVersion: "0.1.0-beta.1",
+      collectorVersion: "0.1.0-beta.2",
+      sessionHashVersion: 1,
     }),
   });
 
@@ -33,17 +34,20 @@ describe("device pairing route", () => {
     const rpc = vi
       .fn()
       .mockResolvedValue({
-        data: "11111111-1111-4111-8111-111111111111",
+        data: {
+          deviceId: "11111111-1111-4111-8111-111111111111",
+          sessionHashKey: "a".repeat(64),
+        },
         error: null,
       });
     mocks.getAdmin.mockReturnValue({ rpc });
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(rpc).toHaveBeenCalledWith(
-      "exchange_pairing_code",
+      "exchange_pairing_code_v2",
       expect.objectContaining({
         p_code_hash: expect.stringContaining("hashed:"),
-        p_collector_version: "0.1.0-beta.1",
+        p_collector_version: "0.1.0-beta.2",
       }),
     );
     expect(JSON.stringify(rpc.mock.calls)).not.toContain('"ABCD-EFGH"');
@@ -57,7 +61,8 @@ describe("device pairing route", () => {
         pairingCode: "ABCD-EFGH",
         name: "C:\\Users\\private",
         platform: "win32",
-        collectorVersion: "0.1.0-beta.1",
+        collectorVersion: "0.1.0-beta.2",
+        sessionHashVersion: 1,
       }),
     });
     expect((await POST(unsafe)).status).toBe(400);
@@ -73,6 +78,23 @@ describe("device pairing route", () => {
     expect(await response.json()).toEqual({
       error: "pairing_code_invalid_expired_or_used",
     });
+  });
+
+  it("rejects collectors without profile-scoped session hashing", async () => {
+    const legacy = new Request("http://localhost/api/v1/pair", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pairingCode: "ABCD-EFGH",
+        name: "Test device",
+        platform: "win32",
+        collectorVersion: "0.1.0-beta.1",
+      }),
+    });
+    const response = await POST(legacy);
+    expect(response.status).toBe(426);
+    expect(await response.json()).toEqual({ error: "collector_upgrade_required" });
+    expect(mocks.getAdmin).not.toHaveBeenCalled();
   });
 
   it("labels demo pairing as non-persistent", async () => {

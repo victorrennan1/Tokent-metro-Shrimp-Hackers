@@ -816,6 +816,7 @@ function Devices({
   onReload: () => Promise<void>;
 }) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   async function revoke(id: string) {
     if (mode === "demo" || !accessToken) return;
@@ -832,6 +833,23 @@ function Devices({
       return;
     }
     setConfirmId(null);
+    await onReload();
+  }
+  async function remove(id: string) {
+    if (mode === "demo" || !accessToken) return;
+    if (deleteConfirmId !== id) {
+      setDeleteConfirmId(id);
+      return;
+    }
+    const response = await fetch(`/api/v1/devices/${id}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      setError("Não foi possível excluir o dispositivo e seus dados.");
+      return;
+    }
+    setDeleteConfirmId(null);
     await onReload();
   }
   return (
@@ -886,7 +904,7 @@ function Devices({
                   {dateTimeLabel(device.lastSeenAt)}
                 </strong>
               </p>
-              {!device.revokedAt && (
+              {!device.revokedAt ? (
                 <button
                   disabled={mode === "demo"}
                   onClick={() => revoke(device.id)}
@@ -897,6 +915,16 @@ function Devices({
                     : confirmId === device.id
                       ? "Confirmar revogação"
                       : "Revogar"}
+                </button>
+              ) : (
+                <button
+                  disabled={mode === "demo"}
+                  onClick={() => remove(device.id)}
+                  className="text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {deleteConfirmId === device.id
+                    ? "Confirmar exclusão dos dados"
+                    : "Excluir dispositivo e dados"}
                 </button>
               )}
             </div>

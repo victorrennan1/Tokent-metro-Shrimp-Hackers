@@ -12,6 +12,7 @@ function createStore(revoked = false) {
   const runs = new Map<string, Run>();
   const events = new Map<string, Record<string, unknown>>();
   let currentBatch = "";
+  let currentDevice = "device-1";
   const thenable = (result: unknown) => {
     const query: Record<string, unknown> & PromiseLike<unknown> = {
       eq: vi.fn((key: string, value: string) => { if (key === "batch_id") currentBatch = value; return query; }),
@@ -26,7 +27,7 @@ function createStore(revoked = false) {
     rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
     from: vi.fn((table: string) => {
       if (table === "devices") return {
-        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "device-1", profile_id: "profile-1", revoked_at: revoked ? new Date().toISOString() : null } }) }) }),
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: currentDevice, profile_id: "profile-1", revoked_at: revoked ? new Date().toISOString() : null } }) }) }),
         update: () => ({ eq: async () => ({ error: null }) })
       };
       if (table === "sync_runs") return {
@@ -67,7 +68,7 @@ function createStore(revoked = false) {
       throw new Error(`Unexpected table ${table}`);
     })
   };
-  return { admin, runs, events };
+  return { admin, runs, events, setDevice: (value: string) => { currentDevice = value; } };
 }
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -126,6 +127,31 @@ describe("authenticated ingestion", () => {
     expect(await response.json()).toEqual(expect.objectContaining({ inserted: 0, updated: 1, ignored: 0 }));
     expect(store.events.size).toBe(1);
     expect(store.events.get(key)?.total_tokens).toBe(190);
+  });
+
+  it("updates the same profile session after pairing a different device", async () => {
+    const store = createStore(); mocks.getAdmin.mockReturnValue(store.admin);
+    const key = hash("stable-profile-session");
+    await POST(request(batch(randomUUID(), key)));
+    store.setDevice("device-2");
+    const response = await POST(request(batch(randomUUID(), key, {
+      occurredAt: "2026-10-18T12:30:00.000Z",
+      tokens: { input: 150, cachedInput: 30, cacheCreation: 0, output: 40, reasoning: null, total: 190 }
+    })));
+    expect(await response.json()).toEqual(expect.objectContaining({ inserted: 0, updated: 1, ignored: 0 }));
+    expect(store.events.size).toBe(1);
+    expect(store.events.get(key)).toEqual(expect.objectContaining({ device_id: "device-2", total_tokens: 190 }));
+  });
+
+  it("adopts an unchanged profile session into the newly paired device", async () => {
+    const store = createStore(); mocks.getAdmin.mockReturnValue(store.admin);
+    const key = hash("unchanged-profile-session");
+    await POST(request(batch(randomUUID(), key)));
+    store.setDevice("device-2");
+    const response = await POST(request(batch(randomUUID(), key)));
+    expect(await response.json()).toEqual(expect.objectContaining({ inserted: 0, updated: 1, ignored: 0 }));
+    expect(store.events.size).toBe(1);
+    expect(store.events.get(key)).toEqual(expect.objectContaining({ device_id: "device-2" }));
   });
 
   it("ignores a regressive counter without overwriting the stored session", async () => {
