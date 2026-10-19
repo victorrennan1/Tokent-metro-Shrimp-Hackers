@@ -29,6 +29,8 @@ Os metadados permanecem até exclusão pelo usuário. O schema remove em cascata
 
 Logs devem conter somente início/fim, versões, contagens, duração, agente afetado e códigos de erro sanitizados.
 
+No onboarding, o código temporário é solicitado separadamente e mascarado; o dashboard nunca o incorpora ao comando sugerido. A prévia local informa fontes, contagens, período, política e categorias de campos antes de qualquer envio. Recusar a primeira sincronização não altera cursores.
+
 ## Auditoria local
 
 `audit:persistent`, `audit:idempotency` e `audit:revocation` usam somente a configuração já existente. A saída contém contagens, estados e resultados booleanos: nunca imprime URL, chaves, tokens de dispositivo, IDs, modelos, hashes de sessão ou conteúdo. O teste de revogação cria um dispositivo e um evento sanitizado temporários, revoga o dispositivo, comprova a recusa e remove exatamente essas linhas em cascata.

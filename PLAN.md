@@ -1,125 +1,198 @@
-# Próxima sessão do Codex — fechar o MVP para beta público
+# Próxima sessão do Codex — preparar e publicar o coletor npm beta
 
-## Resultado esperado
+## Objetivo da sessão
 
-Ao final da sessão, o repositório deve estar tecnicamente preparado para publicar um beta cujo caminho principal seja:
+Transformar o coletor existente em uma experiência pública instalável pelo npm, com primeiro uso guiado por um único comando:
 
-1. entrar com GitHub;
-2. gerar um código de pareamento;
-3. vincular o coletor;
-4. detectar e ler telemetria local real do Codex;
-5. mostrar uma prévia sem conteúdo sensível;
-6. sincronizar de forma idempotente;
-7. visualizar os totais no dashboard;
-8. repetir a sincronização sem duplicação;
-9. revogar o dispositivo e impedir novos envios.
+```powershell
+npx tokentometro@beta setup
+```
 
-Publicação na Vercel, alteração de OAuth, uso de um segundo usuário real e publicação no npm dependem das contas do proprietário. O Codex deve preparar, validar e documentar essas operações, mas não inventar credenciais, exibir segredos nem declarar concluído o que não foi executado.
+Ao final, o pacote `tokentometro@0.1.0-beta.1` deve estar validado fora do monorepo e pronto para publicação. A publicação no npm só pode ocorrer depois de o proprietário revisar o tarball e autorizar explicitamente `npm publish` durante a sessão.
 
-## Escopo do beta
+## Experiência final esperada
 
-- **Claude Code:** integração funcional já existente.
-- **Codex:** integração funcional por metadados estruturados dos históricos JSONL locais.
-- **Antigravity:** apenas detectado, sem eventos. Não apresentar como integração funcional.
-- Os números do Codex devem ser descritos como **tokens reportados pela telemetria local do Codex**, não como cobrança ou medição oficial da OpenAI.
-- `cached_input_tokens` já pertence a `input_tokens`, e `reasoning_tokens` já pertence a `output_tokens`; não somá-los novamente ao total.
-- Custo do Codex permanece `null` enquanto não houver preço verificável aplicável. Nunca inventar custo.
+1. O usuário entra no dashboard de produção com GitHub.
+2. Clica em **Adicionar computador** e recebe um código temporário de uso único.
+3. Executa `npx tokentometro@beta setup`.
+4. O coletor usa a URL de produção como padrão, mas preserva `--api-url` e `TOKENTOMETRO_API_URL` para desenvolvimento.
+5. O usuário informa o código, confirma o nome do computador e escolhe a política de repositórios.
+6. O próprio `setup` executa uma varredura somente leitura e mostra a prévia sanitizada.
+7. O coletor pergunta se deve realizar a primeira sincronização.
+8. Somente após confirmação, os metadados permitidos são enviados.
+9. O terminal mostra o resultado e o endereço do dashboard.
+10. As próximas coletas permanecem manuais com `npx tokentometro@beta sync`.
 
-## Regras de execução
+`start` não faz parte desta versão. Esse nome fica reservado para uma futura sincronização periódica ou serviço em segundo plano.
 
-- Ler `AGENTS.md`, as seções relevantes do PRD, `docs/architecture.md`, `docs/privacy.md` e `docs/limitations.md` antes de alterar comportamento.
+## Decisões já tomadas
+
+- Nome público pretendido: `tokentometro`.
+- Canal inicial: `beta`.
+- Primeira versão: `0.1.0-beta.1`; não publicar `0.1.0` antes de validar o beta.
+- Forma principal de uso: `npx tokentometro@beta <comando>`.
+- Instalação global é alternativa: `npm install --global tokentometro@beta`.
+- Coleta e sincronização permanecem manuais.
+- Claude Code e Codex são integrações funcionais.
+- Antigravity é somente detectado e não deve ser anunciado como integração funcional.
+- O coletor e `packages/contracts` usam Apache-2.0, copyright 2026 Victor Rennan.
+- `apps/web`, `supabase` e as demais partes do monorepo permanecem com todos os direitos reservados.
+- A URL atual de produção é `https://web-beta-taupe-89.vercel.app`; não inventar domínio definitivo.
+
+## Regras obrigatórias
+
+- Ler `AGENTS.md`, este plano e somente as referências de arquitetura, privacidade e limitações necessárias.
 - Preservar mudanças existentes do usuário e não limpar o worktree.
-- Implementar e verificar o trabalho autorizado; não parar somente em análise ou plano.
-- Nunca coletar, transmitir ou registrar prompts, respostas, mensagens, código, comandos, saídas de ferramentas, credenciais ou caminhos absolutos.
-- Não imprimir valores de `.env.local`. Confirmar apenas presença, formato e uso correto das variáveis.
-- Não publicar na Vercel ou npm nem modificar configurações remotas sem autorização explícita no momento da ação.
-- Distinguir claramente evidência local, evidência contra Supabase real e evidência em produção.
+- Nunca coletar, transmitir, empacotar ou registrar prompts, respostas, código, comandos, saídas de ferramentas, credenciais, cookies, chaves ou caminhos absolutos.
+- O código de pareamento não deve ser incluído no comando mostrado pela UI, para não ficar gravado no histórico do terminal.
+- A prévia ocorre antes do primeiro envio; cancelamento não pode avançar cursores.
+- Cursores só avançam depois da confirmação integral do servidor.
+- Não adicionar sincronização automática, daemon, serviço do Windows ou cron nesta sessão.
+- Não publicar no npm sem confirmação explícita do proprietário depois da inspeção final.
+- Não imprimir tokens de autenticação npm nem qualquer segredo durante diagnóstico.
 
-## Etapa 1 — consolidar a integração do Codex
+## Etapa 1 — consolidar os metadados do pacote
 
-1. Revisar o adaptador e seus testes contra o formato real observado, sem ler ou reproduzir conteúdo conversacional.
-2. Confirmar que somente registros estruturados de metadados e contagens são considerados.
-3. Confirmar uma linha de origem auditável por evento: agente, modelo, horário, hash da sessão, componentes de tokens, total, `source_version` e versão do contrato.
-4. Verificar deduplicação de uma mesma sessão, atualização de sessão crescente e estabilidade da chave de idempotência.
-5. Testar casos negativos: JSONL inválido, campos ausentes, total indisponível, contador regressivo, duplicata e conteúdo proibido.
-6. Manter `.zst` explicitamente documentado como não suportado, salvo se houver uma implementação pequena, segura e testada sem nova dependência de produção desnecessária.
-7. Garantir que UI e documentação expliquem como o total foi obtido e quais são seus limites.
+1. Alterar a versão do coletor para `0.1.0-beta.1` e manter CLI, cabeçalhos de ingestão e pacote consistentes.
+2. Evitar versões divergentes no código; preferir uma única fonte de verdade segura para a versão.
+3. Completar `package.json` com `author`, `license`, `repository`, `homepage`, `bugs` e `keywords` corretos.
+4. Manter `engines.node >=20`, o binário `tokentometro` e somente arquivos necessários em `files`.
+5. Confirmar que `LICENSE`, `NOTICE` e README acompanham o tarball.
+6. Verificar licenças das dependências de produção e registrar qualquer incompatibilidade real antes da publicação.
 
-## Etapa 2 — auditoria do fluxo persistente
+## Etapa 2 — implementar o primeiro uso guiado
 
-1. Executar `scan` e registrar somente contagens e fontes detectadas.
-2. Executar `sync` contra o Supabase já configurado, sem revelar credenciais.
-3. Comparar prévia local, resposta da ingestão e eventos persistidos.
-4. Repetir a sincronização e comprovar que os totais não aumentam sem novos dados.
-5. Confirmar que o cursor só avança após a confirmação de todos os lotes.
-6. Revogar um dispositivo de teste e comprovar que uma ingestão posterior é recusada.
-7. Validar que nenhuma coluna, log ou resposta contém dados proibidos ou caminhos absolutos.
-8. Se não houver duas identidades reais disponíveis, preparar um roteiro reproduzível para o teste RLS com dois usuários e marcar a execução como pendente; não simular aprovação.
+1. Refatorar o fluxo para que `setup` reutilize as mesmas funções de descoberta, preparação e sincronização dos comandos independentes, sem duplicar regras.
+2. Usar a URL de produção como padrão de distribuição.
+3. Preservar a precedência explícita:
+   - `--api-url`;
+   - `TOKENTOMETRO_API_URL`;
+   - URL de produção padrão.
+4. Manter as perguntas de código de pareamento, nome do computador e política de repositórios.
+5. Após parear, executar uma prévia somente leitura com:
+   - fontes detectadas;
+   - quantidade de sessões por fonte;
+   - período;
+   - política aplicada;
+   - campos permitidos;
+   - campos que nunca são enviados.
+6. Perguntar `Sincronizar agora?` com resposta padrão negativa.
+7. Se o usuário recusar, manter o computador vinculado, não enviar eventos e não avançar cursores.
+8. Se aceitar, usar exatamente o fluxo idempotente já existente.
+9. Ao concluir, mostrar contagens sanitizadas e a URL do dashboard, sem abrir navegador automaticamente.
+10. Preservar os comandos independentes `scan`, `sync`, `status` e `logout`.
 
-## Etapa 3 — fechar o escopo público
+## Etapa 3 — atualizar o dashboard de pareamento
 
-1. Verificar filtros por período, agente, modelo e repositório no fluxo real.
-2. Verificar que rankings e qualquer compartilhamento público respeitam consentimento explícito.
-3. Se o ranking público real não estiver completo e seguro, removê-lo da promessa inicial e mantê-lo indisponível/claramente identificado, sem misturar fixtures com produção.
-4. Remover alegações de suporte funcional ao Antigravity das superfícies de produto; manter a limitação explícita.
-5. Confirmar que **Custo equivalente estimado** nunca é apresentado como gasto, fatura ou cobrança real.
+1. Em produção, trocar a instrução interna do monorepo por:
 
-## Etapa 4 — preparar Vercel e OAuth
+   ```powershell
+   npx tokentometro@beta setup
+   ```
 
-1. Verificar a configuração do monorepo para build reproduzível na Vercel.
-2. Documentar os comandos e o diretório de projeto corretos, incluindo dependências workspace.
-3. Documentar somente os nomes das variáveis necessárias:
-   - `NEXT_PUBLIC_SUPABASE_URL`;
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`;
-   - `SUPABASE_SECRET_KEY`;
-   - `PAIRING_SECRET`.
-4. Criar ou atualizar um checklist de configuração de URL do site, redirects do Supabase e callback do GitHub, usando placeholders seguros.
-5. Depois que o proprietário publicar, executar o smoke test na URL de produção: login, pareamento, scan, sync, dashboard, ressincronização e revogação.
-6. Confirmar que produção não carrega fixtures nem exibe a faixa de demonstração.
+2. Manter o código separado do comando.
+3. Explicar que o código é temporário e de uso único.
+4. Informar que o coletor mostrará uma prévia antes do primeiro envio.
+5. Manter o comportamento do modo demonstração claramente separado e rotulado.
 
-## Etapa 5 — preparar distribuição do coletor
+## Etapa 4 — documentação pública
 
-1. Verificar se o pacote `tokentometro` pode ser instalado fora do monorepo.
-2. Executar build e `pnpm pack`/equivalente em modo de inspeção, verificando arquivos incluídos e ausência de segredos.
-3. Resolver referências `workspace:*` que impedirem a instalação do pacote publicado, sem duplicar contratos nem enfraquecer validações.
-4. Testar a instalação do tarball em diretório temporário e os comandos `setup`, `scan`, `sync`, `status` e `logout`.
-5. Documentar a instalação por package runner ou globalmente.
-6. Deixar a publicação npm como etapa explícita do proprietário, a menos que ele autorize a publicação durante a sessão.
+1. Reescrever `apps/collector/README.md` para usuários externos, removendo o comando do monorepo como instrução principal.
+2. Documentar:
+   - requisito Node.js 20+;
+   - primeiro uso com `npx`;
+   - comandos `setup`, `scan`, `sync`, `status` e `logout`;
+   - instalação global opcional e desinstalação;
+   - diferença entre remover o pacote, executar `logout` e revogar o dispositivo;
+   - coleta manual;
+   - dados coletados e proibidos;
+   - Claude Code e Codex funcionais;
+   - Antigravity ainda sem eventos;
+   - licença Apache-2.0.
+3. Atualizar README raiz, `docs/deployment.md` e `docs/limitations.md` para o estado real já comprovado em produção.
+4. Não descrever tokens como cobrança ou gasto oficial; usar **tokens reportados pela telemetria local** e **Custo equivalente estimado**.
 
-## Etapa 6 — documentação e estado real
+## Etapa 5 — testes obrigatórios
 
-1. Atualizar `docs/limitations.md`: remover a afirmação obsoleta de que Supabase/GitHub OAuth não foram exercitados e registrar exatamente o que foi comprovado.
-2. Atualizar README, instalação, privacidade e limitações para refletirem Claude Code e Codex como funcionais e Antigravity como não funcional.
-3. Documentar a formulação correta da confiabilidade dos números do Codex.
-4. Incluir instruções de revogação, logout e remoção do coletor.
-5. Não declarar Vercel, npm, teste de dois usuários ou produção aprovados enquanto não houver evidência da execução.
+Adicionar ou atualizar testes para cobrir, no mínimo:
 
-## Etapa 7 — verificação final
+1. prioridade de `--api-url`, variável de ambiente e padrão de produção;
+2. `setup` com pareamento válido e primeira sincronização aceita;
+3. `setup` com primeira sincronização recusada;
+4. cancelamento sem avanço de cursor;
+5. nenhuma sessão encontrada;
+6. fonte detectada sem eventos;
+7. falha de ingestão sem avanço de cursor;
+8. retry/idempotência sem duplicação;
+9. dispositivo revogado;
+10. saída sem credenciais, caminhos absolutos ou conteúdo proibido;
+11. preservação dos comandos independentes;
+12. UI de pareamento exibindo o comando npm correto em produção e sem código embutido.
 
-Executar, no mínimo:
+## Etapa 6 — validar o artefato fora do monorepo
 
-1. `corepack pnpm lint`;
-2. `corepack pnpm typecheck`;
-3. `corepack pnpm test`;
-4. `corepack pnpm build`;
-5. `git diff --check`;
-6. testes negativos de privacidade, idempotência, dispositivo revogado e contrato;
-7. smoke test local completo;
-8. smoke test de produção quando a URL publicada estiver disponível.
+1. Executar lint, typecheck, testes e build dos pacotes afetados.
+2. Executar `npm pack --dry-run` obrigatoriamente dentro de `apps/collector`, nunca na raiz.
+3. Revisar a lista completa do tarball e confirmar ausência de `.env`, fontes desnecessárias, fixtures, credenciais e arquivos do dashboard.
+4. Gerar o tarball real do beta.
+5. Criar diretório temporário fora do monorepo e instalar o tarball.
+6. Validar nessa instalação:
+   - `tokentometro --version`;
+   - `tokentometro setup` contra um fluxo seguro de teste;
+   - `tokentometro scan`;
+   - `tokentometro sync`;
+   - `tokentometro status`;
+   - `tokentometro logout`.
+7. Confirmar que o pacote não depende de `workspace:*` em runtime.
+8. Executar `git diff --check`.
 
-Falhas não podem ser mascaradas. Informar exatamente o comando, a causa e o que permaneceu sem validação.
+## Etapa 7 — gate de publicação
 
-## Entregáveis da sessão
+Antes de qualquer publicação, apresentar ao proprietário:
 
-1. Integração do Codex validada com testes positivos e negativos.
-2. Evidência resumida da cadeia `registro local → normalização → ingestão → banco → dashboard`.
-3. Resultado da repetição sem duplicação e da revogação de dispositivo.
-4. Configuração do monorepo pronta para Vercel e checklist de OAuth/redirects.
-5. Tarball do coletor validado fora do monorepo ou bloqueio técnico corrigido e documentado.
-6. Documentação e `docs/limitations.md` alinhados ao estado real.
-7. Matriz final com cada critério marcado como **aprovado**, **reprovado** ou **pendente de ação do proprietário**.
-8. Lista curta e ordenada das ações manuais restantes, sem incluir segredos.
+- versão exata;
+- nome e tag npm;
+- conteúdo completo do tarball;
+- resultado dos testes;
+- resultado da instalação fora do monorepo;
+- confirmação de que o nome ainda está disponível;
+- comando exato que será executado.
+
+Somente depois de autorização explícita, executar a partir de `apps/collector`:
+
+```powershell
+npm publish --tag beta --access public
+```
+
+Se autenticação ou 2FA forem solicitados, deixar o usuário concluir a etapa diretamente. Nunca solicitar que ele cole senha, token ou OTP no chat.
+
+## Etapa 8 — smoke test do pacote publicado
+
+Se a publicação for autorizada e concluída:
+
+1. Confirmar `npm view tokentometro@beta`.
+2. Em novo diretório temporário, executar o pacote vindo do registro, não o tarball local.
+3. Validar `npx tokentometro@beta --version`.
+4. Executar o fluxo real autorizado: pareamento, prévia, primeira sincronização e dashboard.
+5. Repetir `sync` e confirmar ausência de duplicação.
+6. Revogar o dispositivo de teste, confirmar recusa posterior e executar `logout`.
+7. Não apagar dados ou dispositivos do usuário sem autorização específica.
+
+## Entregáveis claros
+
+Ao final da sessão, devemos ter:
+
+1. `tokentometro@0.1.0-beta.1` com metadados e licença corretos.
+2. `setup` guiando pareamento, prévia e primeira sincronização.
+3. URL de produção como padrão, com overrides para desenvolvimento preservados.
+4. Modal de pareamento usando o comando npm público.
+5. README público completo para instalação e uso manual.
+6. Testes positivos e negativos do novo onboarding.
+7. Tarball auditado e instalado fora do monorepo.
+8. Matriz final de verificações aprovadas, reprovadas ou pendentes.
+9. Se autorizado: beta publicado e smoke test executado a partir do registro npm.
+10. Se não autorizado: pacote pronto, sem publicação, com apenas a ação do proprietário pendente.
 
 ## Definição de pronto
 
-A sessão termina quando tudo que pode ser concluído localmente estiver implementado e validado, e as únicas pendências restantes dependerem de autorização, credenciais ou identidades externas do proprietário. O beta público só pode ser declarado pronto após o smoke test na Vercel, o teste RLS com dois usuários e a confirmação de que o pacote distribuído instala e executa fora do monorepo.
+A sessão estará concluída quando um builder conseguir partir do dashboard, executar `npx tokentometro@beta setup`, revisar a prévia, autorizar a primeira sincronização e visualizar seus tokens no dashboard sem acessar o monorepo. A versão não pode ser declarada publicada até ser instalada e testada diretamente do registro npm.

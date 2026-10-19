@@ -1,11 +1,23 @@
 {
   "name": "tokentometro",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "description": "Coletor local, privado e somente leitura do Tokentômetro",
+  "author": "Victor Rennan",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/victorrennan1/Tokent-metro-Shrimp-Hackers.git",
+    "directory": "apps/collector"
+  },
+  "homepage": "https://github.com/victorrennan1/Tokent-metro-Shrimp-Hackers/tree/main/apps/collector#readme",
+  "bugs": {
+    "url": "https://github.com/victorrennan1/Tokent-metro-Shrimp-Hackers/issues"
+  },
+  "keywords": ["tokens", "telemetry", "claude-code", "codex", "privacy", "cli"],
   "type": "module",
   "engines": { "node": ">=20" },
   "bin": { "tokentometro": "./dist/cli.js" },
-  "files": ["dist", "README.md"],
+  "files": ["dist", "README.md", "LICENSE", "NOTICE"],
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsup",

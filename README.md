@@ -41,16 +41,18 @@ corepack pnpm --filter ./apps/collector dev status
 corepack pnpm --filter ./apps/collector dev logout
 ```
 
-Depois que o pacote for publicado pelo proprietário, a instalação suportada será:
+O canal beta público será usado assim que o proprietário autorizar a publicação:
 
 ```bash
-npx tokentometro@latest setup
+npx tokentometro@beta setup
 # ou
-npm install --global tokentometro@latest
+npm install --global tokentometro@beta
 tokentometro setup
 ```
 
-O coletor usa `ccusage@20.0.36` para Claude Code e lê os contadores estruturados dos históricos JSONL do Codex atrás de `UsageAdapter`. Mensagens, prompts, respostas, comandos e saídas de ferramentas do Codex são ignorados. A política de repositório é aplicada antes da rede; caminhos locais não entram no contrato. Cada fonte possui cursor próprio, atualizado somente após a confirmação de todos os lotes. Retries usam o mesmo lote durante a tentativa e as chaves de evento permanecem estáveis entre execuções. No Codex, `cached_input_tokens` já pertence à entrada e `reasoning_tokens` já pertence à saída; eles não são somados novamente. O custo equivalente do Codex permanece nulo.
+O `setup` usa `https://web-beta-taupe-89.vercel.app` por padrão, solicita o código fora do comando, mostra uma prévia local e pergunta se deve fazer a primeira sincronização. `--api-url` e `TOKENTOMETRO_API_URL` continuam disponíveis para desenvolvimento. As coletas posteriores são manuais com `sync`; o beta não instala serviço em segundo plano.
+
+O coletor usa `ccusage@20.0.36` para Claude Code e lê os contadores estruturados dos históricos JSONL do Codex atrás de `UsageAdapter`. Mensagens, prompts, respostas, comandos e saídas de ferramentas do Codex são ignorados. A política de repositório é aplicada antes da rede; caminhos locais não entram no contrato. Cada fonte possui cursor próprio, atualizado somente após a confirmação de todos os lotes. Retries usam o mesmo lote durante a tentativa e as chaves de evento permanecem estáveis entre execuções. No Codex, `cached_input_tokens` já pertence à entrada e `reasoning_tokens` já pertence à saída; eles não são somados novamente. O **Custo equivalente estimado** do Codex permanece nulo.
 
 Antigravity é apenas detectado e ainda não produz eventos. Históricos Codex `.zst` ainda não são processados.
 
@@ -80,3 +82,7 @@ Consulte [deploy e OAuth](docs/deployment.md) para a sequência de Vercel, Supab
 Execute `tokentometro logout` para apagar a credencial local. No dashboard real, **Computadores → Revogar → Confirmar revogação** impede novos envios imediatamente. A exclusão completa de dados possui suporte de cascata no schema, mas a operação autenticada de exclusão ainda não faz parte desta fatia.
 
 Consulte [arquitetura](docs/architecture.md), [privacidade](docs/privacy.md) e [limitações](docs/limitations.md).
+
+## Licenciamento
+
+O coletor em `apps/collector` e os contratos incorporados a ele em `packages/contracts` são disponibilizados sob a licença Apache-2.0, com copyright de Victor Rennan. As demais partes do monorepo não recebem uma licença open source neste momento. Consulte [LICENSING.md](LICENSING.md) para os limites exatos.

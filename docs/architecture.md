@@ -50,3 +50,5 @@ Sem configuração Supabase, o modo demo é identificado em todas as telas. O pa
 
 O contrato compartilhado é incorporado ao bundle do coletor. Assim, o tarball publicado não possui dependência runtime `workspace:*`. O executável resolve o CLI fixado do `ccusage` pela instalação do próprio pacote, sem depender de um binário transitivo estar no `PATH` global.
 
+O `setup` resolve a origem da API na ordem `--api-url`, `TOKENTOMETRO_API_URL` e `https://web-beta-taupe-89.vercel.app`. Depois do pareamento, ele reutiliza a mesma preparação e sincronização dos comandos independentes: a prévia local acontece antes da confirmação, e a recusa mantém o dispositivo vinculado sem enviar eventos nem avançar cursores. Não existe sincronização periódica neste beta.
+

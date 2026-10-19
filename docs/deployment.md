@@ -37,9 +37,9 @@ No GitHub, crie ou atualize o OAuth App com a URL pública como homepage e com o
 Na URL publicada, execute nesta ordem:
 
 1. entrar com GitHub e confirmar que o dashboard real não exibe a faixa **DEMONSTRAÇÃO**;
-2. gerar um código de pareamento e vincular um dispositivo de teste;
-3. executar `tokentometro scan` e conferir somente fontes, contagens, período e campos permitidos;
-4. executar `tokentometro sync`, atualizar o dashboard e comparar sessões/totais;
+2. gerar um código de pareamento e executar `npx tokentometro@beta setup` sem colocar o código na linha de comando;
+3. conferir a prévia de fontes, contagens, período, política e campos antes de aceitar a primeira sincronização;
+4. aceitar a primeira sincronização, atualizar o dashboard e comparar sessões/totais;
 5. reenviar o mesmo lote com `corepack pnpm audit:idempotency` ou repetir sem dados novos e confirmar total inalterado;
 6. revogar o dispositivo no dashboard e confirmar que novo `tokentometro sync` recebe `device_revoked` sem avançar cursores;
 7. executar o roteiro RLS abaixo com duas identidades reais.
@@ -55,10 +55,10 @@ Na URL publicada, execute nesta ordem:
 ## 6. Publicar o coletor no npm
 
 1. Confirme que o nome `tokentometro` está disponível ou pertence à conta correta.
-2. Execute `corepack pnpm --filter ./apps/collector pack --pack-destination <diretorio-temporario>`.
-3. Inspecione o tarball: ele deve conter somente `dist/cli.js`, `dist/cli.d.ts`, `package.json` e `README.md`.
+2. Dentro de `apps/collector`, execute `npm pack --dry-run` e revise a lista completa.
+3. Ainda dentro de `apps/collector`, execute `npm pack`; o tarball deve conter apenas o bundle e suas declarações em `dist`, `package.json`, `README.md`, `LICENSE` e `NOTICE`.
 4. Em diretório temporário, instale o tarball e repita `setup`, `scan`, `sync`, `status` e `logout`.
-5. Execute `npm login` e depois `npm publish <caminho-do-tarball> --access public`.
-6. Valide `npx tokentometro@latest --help` e uma instalação global limpa.
+5. Depois da revisão e autorização explícita do proprietário, execute `npm publish --tag beta --access public` dentro de `apps/collector`.
+6. Valide `npm view tokentometro@beta` e `npx tokentometro@beta --version` a partir de um diretório temporário novo.
 
-Não publique o pacote antes de confirmar propriedade do nome e não inclua `.env.local`, configurações do coletor ou arquivos de histórico no tarball.
+Não publique o pacote antes de confirmar propriedade ou disponibilidade do nome. Não inclua `.env.local`, configurações do coletor, fixtures, arquivos de histórico ou qualquer caminho local no tarball.
