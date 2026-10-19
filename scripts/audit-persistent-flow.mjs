@@ -42,8 +42,15 @@ if (deviceError) throw new Error("device_query_failed");
 if (!device) throw new Error("paired_device_not_found");
 
 const eventFields = "agent,model,repository_snapshot,occurred_at,input_tokens,cached_input_tokens,cache_creation_tokens,output_tokens,reasoning_tokens,total_tokens,estimated_cost_usd,pricing_version,source_version,schema_version";
-const [{ data: events, error: eventError }, { data: runs, error: runError }] = await Promise.all([
+const [
+  { data: events, error: eventError },
+  { data: profileEvents, error: profileEventError },
+  { data: profileDevices, error: profileDeviceError },
+  { data: runs, error: runError }
+] = await Promise.all([
   admin.from("usage_events").select(eventFields).eq("profile_id", device.profile_id).eq("device_id", device.id),
+  admin.from("usage_events").select("total_tokens").eq("profile_id", device.profile_id),
+  admin.from("devices").select("revoked_at").eq("profile_id", device.profile_id),
   admin.from("sync_runs")
     .select("status,received_count,inserted_count,updated_count,ignored_count,rejected_count,finished_at")
     .eq("profile_id", device.profile_id)
@@ -52,6 +59,8 @@ const [{ data: events, error: eventError }, { data: runs, error: runError }] = a
     .limit(1)
 ]);
 if (eventError) throw new Error("usage_event_query_failed");
+if (profileEventError) throw new Error("profile_usage_event_query_failed");
+if (profileDeviceError) throw new Error("profile_device_query_failed");
 if (runError) throw new Error("sync_run_query_failed");
 
 const serialized = JSON.stringify(events ?? []);
@@ -64,6 +73,10 @@ console.log(JSON.stringify({
   deviceActive: !device.revoked_at,
   eventCount: events?.length ?? 0,
   totalTokens: (events ?? []).reduce((sum, event) => sum + Number(event.total_tokens), 0),
+  profileEventCount: profileEvents?.length ?? 0,
+  profileTotalTokens: (profileEvents ?? []).reduce((sum, event) => sum + Number(event.total_tokens), 0),
+  activeDeviceCount: (profileDevices ?? []).filter((entry) => !entry.revoked_at).length,
+  revokedDeviceCount: (profileDevices ?? []).filter((entry) => Boolean(entry.revoked_at)).length,
   agentCounts,
   latestRun: latestRun ? {
     status: latestRun.status,
