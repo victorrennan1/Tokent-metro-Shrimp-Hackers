@@ -8,13 +8,11 @@
 - O tarball `tokentometro@0.1.0-beta.1` foi inspecionado e instalado em diretório temporário fora do monorepo. Ele contém somente `LICENSE`, `NOTICE`, `README.md`, `package.json`, `dist/cli.js` e `dist/cli.d.ts`, sem dependência runtime `workspace:*`.
 - Nessa instalação externa, `--version`, `setup`, `scan`, `sync`, `status` e `logout` executaram. O `setup` pareou contra um mock HTTP local, detectou Claude Code, Codex e Antigravity, mostrou somente contagens e categorias permitidas e, após a resposta negativa padrão, não enviou eventos nem avançou cursores. O caminho aceito de primeira sincronização, falhas, retry e revogação está coberto por testes automatizados; não substitui o smoke no backend de produção.
 - O `tokentometro@0.1.0-beta.1` foi publicado e o smoke real inseriu 23 sessões. Uma sincronização incremental posterior atualizou uma sessão sem criar outra. O teste também revelou 42 sessões históricas duplicadas por pareamentos anteriores: o beta.1 gerava o hash com segredo do dispositivo, não do perfil.
-- A correção beta.2 está implementada localmente com HMAC estável por perfil, unicidade composta no banco, negociação explícita no pareamento e testes entre dispositivos e perfis. Ela ainda depende de aplicar a migration, reimplantar a API, publicar o pacote e repetir o smoke antes de ser declarada funcional em produção.
+- A correção `tokentometro@0.1.0-beta.2` foi aplicada ao Supabase, implantada na Vercel e publicada no npm. No smoke real, o primeiro pareamento beta.2 inseriu 23 sessões; depois de logout, revogação e novo pareamento da mesma conta, a sincronização retornou `0 inseridos` e `23 atualizados`. A auditoria confirmou 23 eventos no dispositivo atual, total idempotente, nenhum campo proibido e nenhum caminho absoluto.
 
-## Pendências externas para o beta.2
+## Pendências externas após o beta.2
 
-- Aplicar `202610190001_profile_scoped_session_dedup.sql` no Supabase e confirmar as novas fronteiras de acesso.
-- Reimplantar a API, publicar `tokentometro@0.1.0-beta.2` e repetir pareamento → sincronização → logout → novo pareamento na mesma conta.
-- Os 42 eventos duplicados existentes não podem ser reconciliados pelos hashes antigos. Após o beta.2 ser validado, eles devem ser removidos por dispositivo revogado somente com autorização explícita do proprietário.
+- Os 65 eventos legados atualmente ligados a dispositivos beta.1 não podem ser reconciliados pelos hashes antigos. Como o dispositivo beta.2 ativo já possui as 23 sessões completas, os dispositivos revogados e seus dados podem ser excluídos somente com confirmação explícita do proprietário.
 - O isolamento RLS possui políticas, testes estáticos e escopo explícito nas rotas, mas o roteiro com dois usuários reais ainda não foi executado.
 - O isolamento RLS com duas identidades reais foi confirmado visualmente no dashboard, mas tentativas cruzadas diretas de leitura e revogação ainda não foram executadas com os dois JWTs.
 
