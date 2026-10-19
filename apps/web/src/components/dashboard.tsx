@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  BookOpen,
   ChevronDown,
+  CheckCircle2,
   CircleHelp,
   Code2,
+  Copy,
   Cpu,
   Database,
   Laptop,
@@ -18,6 +21,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trophy,
+  Terminal,
   X,
   Zap,
 } from "lucide-react";
@@ -29,7 +33,7 @@ import type {
 import { filterDashboardEvents } from "@/lib/dashboard-filters";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
-type View = "overview" | "rankings" | "devices" | "privacy";
+type View = "overview" | "rankings" | "devices" | "instructions" | "privacy";
 type Mode = "demo" | "real";
 type LeaderboardRow = { rank: number; name: string; tokens: number };
 
@@ -37,6 +41,7 @@ const nav: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: "overview", label: "Visão geral", icon: LayoutDashboard },
   { id: "rankings", label: "Rankings", icon: Trophy },
   { id: "devices", label: "Computadores", icon: Laptop },
+  { id: "instructions", label: "Instruções", icon: BookOpen },
   { id: "privacy", label: "Privacidade", icon: ShieldCheck },
 ];
 
@@ -217,6 +222,9 @@ export function Dashboard({
               onReload={reload}
             />
           )}
+          {view === "instructions" && (
+            <Instructions onPair={() => setPairing(true)} />
+          )}
           {view === "privacy" && (
             <Privacy
               data={data}
@@ -234,6 +242,151 @@ export function Dashboard({
           close={() => setPairing(false)}
         />
       )}
+    </div>
+  );
+}
+
+const setupCommand = "npx --yes tokentometro@beta setup";
+const syncCommand = "npx --yes tokentometro@beta sync";
+const logoutCommand = "npx --yes tokentometro@beta logout";
+
+function Instructions({ onPair }: { onPair: () => void }) {
+  return (
+    <div className="enter max-w-5xl">
+      <div className="mb-7">
+        <p className="eyebrow text-coral">Primeiros passos</p>
+        <h2 className="mt-2 text-4xl font-black tracking-[-.055em]">
+          Conecte seu computador.
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-black/50">
+          Você precisa do Node.js 20 ou superior. O coletor roda localmente e
+          envia somente os metadados permitidos após sua confirmação.
+        </p>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <InstructionStep
+          number="1"
+          title="Gere o código de pareamento"
+          text="O código é temporário e vincula este computador à sua conta."
+        >
+          <button
+            onClick={onPair}
+            className="mt-4 flex items-center gap-2 rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white hover:bg-coral"
+          >
+            <Plus size={16} />
+            Adicionar computador
+          </button>
+        </InstructionStep>
+
+        <InstructionStep
+          number="2"
+          title="Execute o coletor"
+          text="Abra o PowerShell ou outro terminal, em qualquer pasta, e execute:"
+        >
+          <Command command={setupCommand} />
+        </InstructionStep>
+
+        <InstructionStep
+          number="3"
+          title="Confirme a coleta"
+          text="Informe o código, dê um nome ao computador, escolha a política de repositórios e confira a prévia antes de sincronizar."
+        >
+          <div className="mt-4 flex items-center gap-2 text-sm font-bold text-emerald-700">
+            <CheckCircle2 size={17} />
+            Seus tokens aparecerão após a sincronização
+          </div>
+        </InstructionStep>
+
+        <InstructionStep
+          number="4"
+          title="Mantenha os dados atualizados"
+          text="A coleta ainda é manual. Execute este comando sempre que quiser atualizar o dashboard:"
+        >
+          <Command command={syncCommand} />
+        </InstructionStep>
+      </div>
+
+      <div className="card mt-5 p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" />
+          <div>
+            <h3 className="font-black">O que é enviado</h3>
+            <p className="mt-2 text-sm leading-relaxed text-black/50">
+              Agente, modelo, horário, identificador anônimo da sessão,
+              contagens de tokens, custo equivalente estimado, repositório
+              filtrado e versões. Prompts, respostas, código, comandos,
+              credenciais e caminhos locais nunca são enviados.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="card mt-5 p-5 sm:p-6">
+        <p className="eyebrow text-black/40">Desconectar este computador</p>
+        <h3 className="mt-2 text-xl font-black">Remova o acesso com segurança</h3>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-black/50">
+          Em Computadores, revogue o dispositivo. Depois remova a credencial
+          local com o comando abaixo. Se também quiser apagar o histórico
+          associado, use “Excluir dispositivo e dados” após a revogação.
+        </p>
+        <div className="max-w-xl">
+          <Command command={logoutCommand} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InstructionStep({
+  number,
+  title,
+  text,
+  children,
+}: {
+  number: string;
+  title: string;
+  text: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="card p-5 sm:p-6">
+      <div className="flex items-start gap-4">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-acid text-sm font-black">
+          {number}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-lg font-black">{title}</h3>
+          <p className="mt-1 text-sm leading-relaxed text-black/50">{text}</p>
+          {children}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Command({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    await navigator.clipboard.writeText(command);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
+
+  return (
+    <div className="mt-4 flex min-w-0 items-center gap-3 rounded-xl bg-ink p-3 text-white">
+      <Terminal size={17} className="shrink-0 text-acid" />
+      <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-xs sm:text-sm">
+        {command}
+      </code>
+      <button
+        onClick={copy}
+        className="shrink-0 rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white"
+        aria-label={`Copiar comando ${command}`}
+      >
+        {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+      </button>
     </div>
   );
 }
