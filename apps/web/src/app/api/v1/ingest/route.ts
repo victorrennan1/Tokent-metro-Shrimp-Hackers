@@ -221,9 +221,10 @@ export async function POST(request: Request) {
   }).eq("batch_id", parsed.data.batchId).eq("device_id", device.id);
 
   if (!error) {
+    const collectorVersion = request.headers.get("x-collector-version");
     await admin.from("devices").update({
       last_seen_at: new Date().toISOString(),
-      collector_version: request.headers.get("x-collector-version")
+      ...(collectorVersion ? { collector_version: collectorVersion } : {})
     }).eq("id", device.id);
   }
   return NextResponse.json(response, { status: error ? 503 : 200 });

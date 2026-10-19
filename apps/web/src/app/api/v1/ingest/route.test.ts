@@ -13,6 +13,7 @@ function createStore(revoked = false) {
   const events = new Map<string, Record<string, unknown>>();
   let currentBatch = "";
   let currentDevice = "device-1";
+  const deviceUpdates: Array<Record<string, unknown>> = [];
   const thenable = (result: unknown) => {
     const query: Record<string, unknown> & PromiseLike<unknown> = {
       eq: vi.fn((key: string, value: string) => { if (key === "batch_id") currentBatch = value; return query; }),
@@ -28,7 +29,10 @@ function createStore(revoked = false) {
     from: vi.fn((table: string) => {
       if (table === "devices") return {
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: currentDevice, profile_id: "profile-1", revoked_at: revoked ? new Date().toISOString() : null } }) }) }),
-        update: () => ({ eq: async () => ({ error: null }) })
+        update: (values: Record<string, unknown>) => {
+          deviceUpdates.push(values);
+          return { eq: async () => ({ error: null }) };
+        }
       };
       if (table === "sync_runs") return {
         select: () => {
@@ -68,7 +72,7 @@ function createStore(revoked = false) {
       throw new Error(`Unexpected table ${table}`);
     })
   };
-  return { admin, runs, events, setDevice: (value: string) => { currentDevice = value; } };
+  return { admin, runs, events, deviceUpdates, setDevice: (value: string) => { currentDevice = value; } };
 }
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -106,6 +110,7 @@ describe("authenticated ingestion", () => {
     expect(await first.json()).toEqual(expect.objectContaining({ inserted: 1, ignored: 0 }));
     expect(await retry.json()).toEqual(expect.objectContaining({ inserted: 1, ignored: 0 }));
     expect(store.events.size).toBe(1);
+    expect(store.deviceUpdates[0]).not.toHaveProperty("collector_version");
   });
 
   it("ignores an existing event sent in a new batch", async () => {

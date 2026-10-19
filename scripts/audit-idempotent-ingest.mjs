@@ -88,7 +88,6 @@ async function send() {
     headers: {
       authorization: `Bearer ${deviceToken}`,
       "content-type": "application/json",
-      "x-collector-version": "0.1.0-audit",
       "x-schema-version": "1",
       "x-batch-id": batchId
     },
