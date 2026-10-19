@@ -37,7 +37,15 @@ export const ingestBatchSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   batchId: z.string().uuid(),
   records: z.array(usageRecordSchema).min(1).max(MAX_BATCH_SIZE)
-}).strict();
+}).strict().superRefine((batch, context) => {
+  const seen = new Set<string>();
+  batch.records.forEach((record, index) => {
+    if (seen.has(record.idempotencyKey)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "duplicate_idempotency_key", path: ["records", index, "idempotencyKey"] });
+    }
+    seen.add(record.idempotencyKey);
+  });
+});
 
 export const ingestResponseSchema = z.object({
   batchId: z.string().uuid(),
@@ -53,11 +61,14 @@ export type IngestBatch = z.infer<typeof ingestBatchSchema>;
 export type IngestResponse = z.infer<typeof ingestResponseSchema>;
 
 const forbiddenKey = /(prompt|response|message|content|code|credential|cookie|api.?key|auth.?token|local.?path|file.?path|command|tool.?output)/i;
-const absolutePath = /(?:[a-zA-Z]:\\|\\\\|\/(?:Users|home|root|var|etc)\/)/;
+const windowsAbsolutePath = /(?:^|[\s"'(`])(?:[a-zA-Z]:[\\/]|\\\\)[^\s]*/;
+const posixAbsolutePath = /(?:^|[\s"'(`])\/(?!\/)[^\s]*/;
 
 export function assertNoForbiddenData(value: unknown): void {
   const visit = (node: unknown, path: string): void => {
-    if (typeof node === "string" && absolutePath.test(node)) throw new Error(`absolute_path_forbidden:${path}`);
+    if (typeof node === "string" && (windowsAbsolutePath.test(node) || posixAbsolutePath.test(node))) {
+      throw new Error(`absolute_path_forbidden:${path}`);
+    }
     if (!node || typeof node !== "object") return;
     for (const [key, child] of Object.entries(node)) {
       if (forbiddenKey.test(key)) throw new Error(`forbidden_field:${path}.${key}`);
@@ -69,6 +80,9 @@ export function assertNoForbiddenData(value: unknown): void {
 
 export function calculateTotal(tokens: Omit<UsageRecord["tokens"], "total">, reported?: number | null): number {
   if (reported != null) return reported;
-  return (tokens.input ?? 0) + (tokens.cacheCreation ?? 0) + (tokens.output ?? 0) + (tokens.reasoning ?? 0);
+  // Cached input is already part of input and reasoning is already part of
+  // output for the sources supported by this contract. Cache creation remains
+  // separate in Claude telemetry and is therefore included in the fallback.
+  return (tokens.input ?? 0) + (tokens.cacheCreation ?? 0) + (tokens.output ?? 0);
 }
 

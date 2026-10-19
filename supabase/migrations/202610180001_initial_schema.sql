@@ -108,7 +108,6 @@ alter table public.usage_events enable row level security;
 alter table public.sync_runs enable row level security;
 
 create policy "profiles own read" on public.profiles for select using (auth.uid() = id);
-create policy "profiles public leaderboard read" on public.profiles for select using (leaderboard_opt_in = true);
 create policy "profiles own update" on public.profiles for update using (auth.uid() = id) with check (auth.uid() = id);
 create policy "devices own all" on public.devices for all using (auth.uid() = profile_id) with check (auth.uid() = profile_id);
 create policy "pairing codes own all" on public.pairing_codes for all using (auth.uid() = profile_id) with check (auth.uid() = profile_id);

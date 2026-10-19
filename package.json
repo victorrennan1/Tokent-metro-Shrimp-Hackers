@@ -10,6 +10,9 @@
     "lint": "corepack pnpm -r lint",
     "typecheck": "corepack pnpm -r typecheck",
     "test": "corepack pnpm -r test",
+    "audit:persistent": "node scripts/audit-persistent-flow.mjs",
+    "audit:idempotency": "node scripts/audit-idempotent-ingest.mjs",
+    "audit:revocation": "node scripts/audit-revocation.mjs",
     "format": "prettier --write .",
     "check": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build"
   },

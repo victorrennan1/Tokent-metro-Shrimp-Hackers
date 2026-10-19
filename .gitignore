@@ -8,5 +8,6 @@ test-results/
 .env.local
 *.tsbuildinfo
 .tokentometro/
+supabase/.temp/
 .DS_Store
 
